@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
+  <title id="title">Redis Agent Memory with LangGraph architecture</title>
+  <desc id="desc">Architecture diagram showing user input flowing through a LangGraph agent, OpenAI, and Redis Agent Memory for session events and long-term memories.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#263238"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#C22032"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#263238" flood-opacity="0.14"/>
+    </filter>
+    <style>
+      .bg { fill: #F7F8F6; }
+      .band { fill: #FFFFFF; stroke: #D9DED8; stroke-width: 1.5; }
+      .node { fill: #FFFFFF; stroke: #B8C2BC; stroke-width: 2; filter: url(#shadow); }
+      .node-red { fill: #FFF6F6; stroke: #C22032; stroke-width: 2.5; filter: url(#shadow); }
+      .node-green { fill: #F2FBF6; stroke: #2F855A; stroke-width: 2; filter: url(#shadow); }
+      .label { fill: #1F2933; font-family: Inter, Arial, sans-serif; font-size: 22px; font-weight: 700; }
+      .text { fill: #3B454E; font-family: Inter, Arial, sans-serif; font-size: 15px; }
+      .small { fill: #60717B; font-family: Inter, Arial, sans-serif; font-size: 13px; }
+      .eyebrow { fill: #C22032; font-family: Inter, Arial, sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 1px; }
+      .title { fill: #101820; font-family: Inter, Arial, sans-serif; font-size: 34px; font-weight: 800; }
+      .arrow { stroke: #263238; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .arrow-red { stroke: #C22032; stroke-width: 2.5; fill: none; marker-end: url(#arrow-red); }
+      .arrow-dashed { stroke: #60717B; stroke-width: 2.2; stroke-dasharray: 7 7; fill: none; marker-end: url(#arrow); }
+      .pill { fill: #EFF3F1; stroke: #D1D8D4; stroke-width: 1; }
+      .step { fill: #C22032; font-family: Inter, Arial, sans-serif; font-size: 14px; font-weight: 800; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1200" height="680"/>
+  <text class="title" x="60" y="64">Redis Agent Memory with LangGraph</text>
+  <text class="text" x="60" y="94">One interactive turn retrieves memory, calls the model, records the session, and writes durable memories.</text>
+
+  <rect class="band" x="50" y="128" width="1100" height="440" rx="22"/>
+  <text class="eyebrow" x="82" y="164">INTERACTIVE DEMO FLOW</text>
+
+  <rect class="node" x="80" y="236" width="150" height="118" rx="16"/>
+  <circle cx="155" cy="270" r="24" fill="#E9EEF0"/>
+  <path d="M143 271c0-9 5-16 12-16s12 7 12 16c0 7-5 13-12 13s-12-6-12-13z" fill="#60717B"/>
+  <path d="M123 316c9-18 23-27 32-27s23 9 32 27" fill="none" stroke="#60717B" stroke-width="8" stroke-linecap="round"/>
+  <text class="label" x="116" y="332">User</text>
+
+  <rect class="node-green" x="300" y="214" width="210" height="164" rx="18"/>
+  <text class="step" x="326" y="248">1</text>
+  <text class="label" x="348" y="248">LangGraph</text>
+  <text class="label" x="348" y="276">Agent</text>
+  <text class="text" x="326" y="314">Coordinates the turn:</text>
+  <text class="small" x="326" y="340">retrieve, respond, write</text>
+
+  <rect class="node" x="590" y="166" width="220" height="134" rx="18"/>
+  <text class="step" x="616" y="200">2</text>
+  <text class="label" x="638" y="200">OpenAI</text>
+  <text class="label" x="638" y="228">chat model</text>
+  <text class="text" x="616" y="264">Generates the assistant</text>
+  <text class="text" x="616" y="286">response with memory context</text>
+
+  <rect class="node-red" x="900" y="214" width="220" height="164" rx="18"/>
+  <text class="step" x="926" y="248">3</text>
+  <text class="label" x="948" y="248">Redis Agent</text>
+  <text class="label" x="948" y="276">Memory</text>
+  <text class="text" x="926" y="314">Stores session events</text>
+  <text class="text" x="926" y="338">and long-term memories</text>
+
+  <rect class="node" x="590" y="384" width="220" height="118" rx="18"/>
+  <text class="step" x="616" y="418">4</text>
+  <text class="label" x="638" y="418">Memory</text>
+  <text class="label" x="638" y="446">extraction</text>
+  <text class="text" x="616" y="478">Finds durable facts</text>
+
+  <path class="arrow" d="M230 295 H300"/>
+  <path class="arrow" d="M510 254 C540 220 552 210 590 210"/>
+  <path class="arrow" d="M810 232 C848 232 862 248 900 266"/>
+  <path class="arrow" d="M900 326 C858 346 842 390 810 424"/>
+  <path class="arrow-red" d="M590 438 C548 438 536 360 510 330"/>
+  <path class="arrow-dashed" d="M900 300 C815 318 610 344 510 314"/>
+  <path class="arrow" d="M300 330 C270 370 248 394 205 394 C160 394 135 372 124 352"/>
+
+  <rect class="pill" x="346" y="404" width="138" height="34" rx="17"/>
+  <text class="small" x="371" y="426">session_id</text>
+  <rect class="pill" x="346" y="448" width="138" height="34" rx="17"/>
+  <text class="small" x="375" y="470">owner_id</text>
+  <rect class="pill" x="346" y="492" width="138" height="34" rx="17"/>
+  <text class="small" x="371" y="514">namespace</text>
+
+  <text class="small" x="536" y="190">LLM call</text>
+  <text class="small" x="820" y="220">response</text>
+  <text class="small" x="818" y="398">turn text</text>
+  <text class="small" x="660" y="348">retrieved memories</text>
+  <text class="small" x="522" y="432">durable memories</text>
+  <text class="small" x="158" y="415">assistant reply</text>
+</svg>

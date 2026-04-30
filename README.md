@@ -2,9 +2,9 @@
 
 ## Overview
 
-This demo demonstrates how [Redis Agent Memory](https://redis.github.io/agent-memory-server) can add durable memory to a LangGraph agent. Built with Python, LangGraph, OpenAI, and the `redis-agent-memory` Python client, it shows how an agent can remember user facts and preferences across sessions while keeping the interaction simple enough for a live video walkthrough.
+This demo demonstrates how [Redis Agent Memory](https://pypi.org/project/redis-agent-memory/) can add durable memory to a LangGraph agent. Built with Python, LangGraph, OpenAI, and the `redis-agent-memory` Python client, it shows how an agent can remember user facts and preferences across sessions while keeping the interaction simple enough for a user walkthrough.
 
-The demo runs as an interactive terminal assistant. You type messages into the agent, inspect Redis Insight when useful, start a fresh session, and then ask follow-up questions that rely on long-term memory.
+The demo runs as an interactive terminal assistant. You type messages into the agent, observe how memories are stored and retrieved, inspect data using Redis Insight when useful, start a fresh session, and then ask follow-up questions that rely on long-term memory.
 
 ## Table of Contents
 
@@ -20,10 +20,10 @@ The demo runs as an interactive terminal assistant. You type messages into the a
 ## Demo Objectives
 
 - Demonstrate Redis as a memory persistence layer for agentic applications.
-- Show how to integrate Redis Agent Memory Server through the Python client.
+- Show how to integrate Redis Agent Memory through the Python client.
 - Illustrate the LangGraph pattern of retrieving memory before an LLM call and writing memory after a turn.
 - Show the difference between a session conversation and durable long-term memory.
-- Provide a video-friendly flow that can be inspected live in Redis Insight.
+- Provide a simple way to verify your Redis Agent Memory service endpoint.
 
 ## Setup
 
@@ -150,26 +150,14 @@ You>
 
 The demo uses LangGraph to model one agent turn as a small graph:
 
-1. Retrieve relevant long-term memories from Redis Agent Memory Server.
+1. Retrieve relevant long-term memories from Redis Agent Memory.
 2. Inject those memories into the OpenAI system prompt.
 3. Generate the assistant response.
 4. Write the user and assistant messages as session events.
 5. Extract durable facts and preferences from the turn.
-6. Write extracted memories back to Redis Agent Memory Server.
+6. Write extracted memories back to Redis Agent Memory.
 
-```mermaid
-flowchart LR
-    User["User"] --> Graph["LangGraph Agent"]
-    Graph --> Search["Search Long-Term Memory"]
-    Search --> Redis["Redis Agent Memory Server"]
-    Redis --> Context["Memory Context"]
-    Context --> LLM["OpenAI"]
-    LLM --> Response["Assistant Response"]
-    Response --> Events["Session Events"]
-    Response --> Extract["Memory Extraction"]
-    Events --> Redis
-    Extract --> Redis
-```
+![Redis Agent Memory with LangGraph architecture](images/architecture-diagram.png)
 
 ## Known Issues
 
@@ -180,8 +168,7 @@ flowchart LR
 
 ## Resources
 
-- [Redis Agent Memory Server](https://redis.github.io/agent-memory-server)
-- [Redis Agent Memory Python package](https://pypi.org/project/redis-agent-memory/)
+- [Redis Agent Memory](https://pypi.org/project/redis-agent-memory/)
 - [LangGraph documentation](https://langchain-ai.github.io/langgraph/)
 - [OpenAI API documentation](https://platform.openai.com/docs)
 - [Redis Insight](https://redis.io/insight/)
