@@ -352,8 +352,8 @@ Relevant long-term memories:
             console.print(
                 Panel(
                     "[bold]Type a message to chat with the agent.[/bold]\n\n"
-                    "[cyan]/new[/cyan]   Start a fresh session\n"
-                    "[cyan]/where[/cyan] Show Redis Insight lookup values\n"
+                    "[cyan]/new[/cyan]   Start a new session memory\n"
+                    "[cyan]/delete[/cyan] Delete current session memory\n"
                     "[cyan]/quit[/cyan]  Exit the demo",
                     title="Commands",
                     border_style="blue",
@@ -369,10 +369,14 @@ Relevant long-term memories:
                 if user_text == "/new":
                     session = new_session_id()
                     console.print(Panel(f"Started fresh session: {session}", border_style="blue"))
-                    show_demo_context(self.config, session)
                     continue
-                if user_text == "/where":
-                    show_demo_context(self.config, session)
+                if user_text == "/delete":
+                    try:
+                        agent_memory.delete_session_memory(session_id=session)
+                    except Exception as exc:
+                        if not is_not_found_error(exc):
+                            raise explain_agent_memory_error("session memory delete", exc)
+                    console.print(Panel(f"Cleared short-term memory for session: {session}", border_style="blue"))
                     continue
                 if user_text:
                     self.ask(graph, session, user_text)
@@ -387,17 +391,6 @@ def show_memories(title: str, memories: list[str]) -> None:
     else:
         for index, memory in enumerate(memories, start=1):
             table.add_row(str(index), memory)
-    console.print(table)
-
-
-def show_demo_context(config: DemoConfig, session_id: str) -> None:
-    table = Table(title="Redis Insight Lookup Values", show_header=True, header_style="bold cyan")
-    table.add_column("Field")
-    table.add_column("Value")
-    table.add_row("store_id", config.agent_memory_store_id)
-    table.add_row("owner_id", config.owner_id)
-    table.add_row("namespace", config.namespace)
-    table.add_row("session_id", session_id)
     console.print(table)
 
 

@@ -142,13 +142,14 @@ Current trip details such as dates, destinations, and booking requests stay in s
 - "I like vegetarian restaurants, but I do not like cilantro."
 - "I am planning a trip to Lisbon next month."
 - `/new`
+- `/delete`
 - "Fresh session: what do you remember about me?"
 - "Can you recommend a dinner plan for Lisbon?"
 
 ### Useful Commands
 
 - `/new` starts a fresh short-term memory session while keeping the same long-term memory owner.
-- `/where` prints the `store_id`, `owner_id`, `namespace`, and current `session_id`.
+- `/delete` deletes short-term memory for the current session while keeping long-term memory intact.
 - `/quit` exits the demo.
 
 ### Suggested Recording Flow
@@ -159,7 +160,8 @@ Current trip details such as dates, destinations, and booking requests stay in s
 4. Inspect Redis Insight to show session events and newly extracted long-term memory.
 5. Type `/new` to start a fresh short-term memory session.
 6. Ask the agent a question that relies on durable long-term memory.
-7. Inspect Redis Insight again to show the memory being reused.
+7. Use `/delete` to delete the current session memory without deleting durable long-term memory.
+8. Inspect Redis Insight again to show the memory being reused.
 
 ## Architecture
 
