@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
   <title id="title">Redis Agent Memory with LangGraph architecture</title>
-  <desc id="desc">Architecture diagram showing user input flowing through a LangGraph agent, OpenAI, and Redis Agent Memory for session events and long-term memories.</desc>
+  <desc id="desc">Architecture diagram showing user input flowing through a LangGraph agent, OpenAI, and Redis Agent Memory for session memory and long-term memories.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
       <path d="M 0 0 L 12 6 L 0 12 z" fill="#263238"/>
@@ -32,7 +32,7 @@
 
   <rect class="bg" width="1200" height="680"/>
   <text class="title" x="60" y="64">Redis Agent Memory with LangGraph</text>
-  <text class="text" x="60" y="94">One interactive turn retrieves memory, calls the model, records the session, and writes durable memories.</text>
+  <text class="text" x="60" y="94">One interactive turn retrieves STM and LTM, calls the model, records the session, and writes durable memories.</text>
 
   <rect class="band" x="50" y="128" width="1100" height="440" rx="22"/>
   <text class="eyebrow" x="82" y="164">INTERACTIVE DEMO FLOW</text>
@@ -61,7 +61,7 @@
   <text class="step" x="926" y="248">3</text>
   <text class="label" x="948" y="248">Redis Agent</text>
   <text class="label" x="948" y="276">Memory</text>
-  <text class="text" x="926" y="314">Stores session events</text>
+  <text class="text" x="926" y="314">Stores session memory</text>
   <text class="text" x="926" y="338">and long-term memories</text>
 
   <rect class="node" x="590" y="384" width="220" height="118" rx="18"/>
@@ -88,7 +88,7 @@
   <text class="small" x="536" y="190">LLM call</text>
   <text class="small" x="820" y="220">response</text>
   <text class="small" x="818" y="398">turn text</text>
-  <text class="small" x="660" y="348">retrieved memories</text>
+  <text class="small" x="640" y="348">STM + relevant LTM</text>
   <text class="small" x="522" y="432">durable memories</text>
   <text class="small" x="158" y="415">assistant reply</text>
 </svg>

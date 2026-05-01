@@ -2,9 +2,9 @@
 
 ## Overview
 
-This demo demonstrates how [Redis Agent Memory](https://pypi.org/project/redis-agent-memory/) can add durable memory to a LangGraph agent. Built with Python, LangGraph, OpenAI, and the `redis-agent-memory` Python client, it shows how an agent can remember user facts and preferences across sessions while keeping the interaction simple enough for a user walkthrough.
+This demo demonstrates how [Redis Agent Memory](https://pypi.org/project/redis-agent-memory/) can add memory to a LangGraph agent. Built with Python, LangGraph, OpenAI, and the `redis-agent-memory` Python client, it shows how an agent can use session-scoped short-term memory for the current conversation and durable long-term memory for user facts and preferences across sessions.
 
-The demo runs as an interactive terminal assistant. You type messages into the agent, observe how memories are stored and retrieved, inspect data using Redis Insight when useful, start a fresh session, and then ask follow-up questions that rely on long-term memory.
+The demo runs as an interactive terminal assistant. You type messages into the agent, observe how session memory and long-term memory are stored and retrieved, inspect data using Redis Insight when useful, start a fresh session, and then ask follow-up questions that rely on durable long-term memory.
 
 ## Table of Contents
 
@@ -21,8 +21,9 @@ The demo runs as an interactive terminal assistant. You type messages into the a
 
 - Demonstrate Redis as a memory persistence layer for agentic applications.
 - Show how to integrate Redis Agent Memory through the Python client.
-- Illustrate the LangGraph pattern of retrieving memory before an LLM call and writing memory after a turn.
-- Show the difference between a session conversation and durable long-term memory.
+- Illustrate the LangGraph pattern of retrieving short-term and long-term memory before an LLM call.
+- Show the difference between session-scoped short-term memory and durable long-term memory.
+- Keep current conversation details in short-term memory while extracting only durable facts and preferences into long-term memory.
 - Provide a simple way to verify your Redis Agent Memory service endpoint.
 
 ## Setup
@@ -118,8 +119,21 @@ uv run python demo.py
 The demo opens an interactive prompt:
 
 ```text
-You>
+👤 You>
 ```
+
+Each turn prints the short-term memory loaded for the current session, the relevant long-term memories retrieved for the current request, and any newly extracted long-term memories.
+
+### Memory Model
+
+The demo intentionally separates two memory scopes:
+
+| Memory scope      | Backed by Redis Agent Memory | Used for                                                    |
+|:------------------|:-----------------------------|:------------------------------------------------------------|
+| Short-term memory | Session memory               | Current conversation context, active itinerary details, and follow-up continuity. |
+| Long-term memory  | Long-term memory             | Durable user facts, persistent preferences, and stable constraints. |
+
+Current trip details such as dates, destinations, and booking requests stay in short-term memory unless the user explicitly asks the agent to remember them for later. Durable details such as a user's name or recurring travel preferences can be extracted into long-term memory.
 
 ### Examples of Interactions
 
@@ -133,29 +147,31 @@ You>
 
 ### Useful Commands
 
-- `/new` starts a fresh session while keeping the same long-term memory owner.
+- `/new` starts a fresh short-term memory session while keeping the same long-term memory owner.
 - `/where` prints the `store_id`, `owner_id`, `namespace`, and current `session_id`.
 - `/quit` exits the demo.
 
 ### Suggested Recording Flow
 
 1. Start the demo with `uv run python demo.py`.
-2. Tell the agent a durable fact or preference.
-3. Inspect Redis Insight to show the new long-term memory.
-4. Type `/new` to start a fresh session.
-5. Ask the agent a question that requires the previous memory.
-6. Inspect Redis Insight again to show the memory being reused.
+2. Ask for help with a multi-turn travel request and notice the session context appearing as short-term memory.
+3. Tell the agent a durable fact or recurring preference.
+4. Inspect Redis Insight to show session events and newly extracted long-term memory.
+5. Type `/new` to start a fresh short-term memory session.
+6. Ask the agent a question that relies on durable long-term memory.
+7. Inspect Redis Insight again to show the memory being reused.
 
 ## Architecture
 
-The demo uses LangGraph to model one agent turn as a small graph:
+The demo uses LangGraph to model one agent turn as a small graph while Redis Agent Memory provides both session-scoped short-term memory and durable long-term memory:
 
-1. Retrieve relevant long-term memories from Redis Agent Memory.
-2. Inject those memories into the OpenAI system prompt.
-3. Generate the assistant response.
-4. Write the user and assistant messages as session events.
-5. Extract durable facts and preferences from the turn.
-6. Write extracted memories back to Redis Agent Memory.
+1. Retrieve the current session memory from Redis Agent Memory as short-term memory.
+2. Retrieve relevant long-term memories from Redis Agent Memory.
+3. Inject both memory contexts into the OpenAI system prompt.
+4. Generate the assistant response.
+5. Write the user and assistant messages as session events.
+6. Extract only durable facts and preferences from the turn.
+7. Write extracted long-term memories back to Redis Agent Memory.
 
 ![Redis Agent Memory with LangGraph architecture](images/architecture-diagram.png)
 
@@ -163,6 +179,7 @@ The demo uses LangGraph to model one agent turn as a small graph:
 
 - The demo requires a reachable Agent Memory Server data-plane endpoint.
 - Memory extraction is performed by the LLM, so phrasing can vary between runs.
+- The demo uses Redis Agent Memory session APIs for short-term memory, not LangGraph's native checkpointer interface.
 - Re-running the same durable fact may create the same deterministic memory ID and depend on server-side idempotency behavior.
 - Redis Insight inspection depends on how your Agent Memory Server stores data internally.
 

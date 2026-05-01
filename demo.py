@@ -14,7 +14,7 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
-from redis_agent_memory import AgentMemory, models
+from redis_agent_memory import AgentMemory, errors, models
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -23,6 +23,7 @@ from typing_extensions import TypedDict
 
 console = Console()
 DEMO_SOURCE = "langgraph-demo"
+SESSION_CONTEXT_LIMIT = 12
 
 
 class MemoryCandidate(BaseModel):
@@ -40,6 +41,7 @@ class AgentState(TypedDict):
     owner_id: str
     session_id: str
     namespace: str
+    session_context: list[str]
     recalled_memories: list[str]
 
 
@@ -115,6 +117,33 @@ def get_memory_text(memory: object) -> str:
     return str(getattr(memory, "text", ""))
 
 
+def coerce_events(response: object) -> list[object]:
+    events = getattr(response, "events", None)
+    if events is None and isinstance(response, dict):
+        events = response.get("events")
+    return list(events or [])
+
+
+def get_event_role(event: object) -> str:
+    role = event.get("role") if isinstance(event, dict) else getattr(event, "role", "")
+    return str(getattr(role, "value", role)).lower()
+
+
+def get_event_text(event: object) -> str:
+    content = event.get("content", []) if isinstance(event, dict) else getattr(event, "content", [])
+    parts = []
+    for item in content or []:
+        if isinstance(item, dict):
+            parts.append(str(item.get("text", "")))
+        else:
+            parts.append(str(getattr(item, "text", "")))
+    return "\n".join(part for part in parts if part)
+
+
+def is_not_found_error(exc: Exception) -> bool:
+    return isinstance(exc, errors.NotFoundErrorResponseContent) or getattr(exc, "status_code", None) == 404
+
+
 def explain_agent_memory_error(operation: str, exc: Exception) -> RuntimeError:
     hint = (
         f"Redis Agent Memory {operation} failed. Check AGENT_MEMORY_SERVER_URL, "
@@ -131,7 +160,25 @@ class RedisAgentMemoryLangGraphDemo:
         self.extractor = self.llm.with_structured_output(MemoryExtraction)
 
     def build_graph(self, agent_memory: AgentMemory):
-        def retrieve_memories(state: AgentState) -> dict:
+        def retrieve_session_context(state: AgentState) -> dict:
+            try:
+                response = agent_memory.get_session_memory(session_id=state["session_id"])
+            except Exception as exc:
+                if is_not_found_error(exc):
+                    show_memories("Short-Term Memory for Current Session", [])
+                    return {"session_context": []}
+                raise explain_agent_memory_error("session memory read", exc)
+
+            session_context = []
+            for event in coerce_events(response)[-SESSION_CONTEXT_LIMIT:]:
+                text = get_event_text(event).strip()
+                if text:
+                    session_context.append(f"{get_event_role(event)}: {text}")
+
+            show_memories("Short-Term Memory for Current Session", session_context)
+            return {"session_context": session_context}
+
+        def retrieve_long_term_memories(state: AgentState) -> dict:
             last_user_message = next(
                 (message for message in reversed(state["messages"]) if isinstance(message, HumanMessage)),
                 None,
@@ -153,24 +200,33 @@ class RedisAgentMemoryLangGraphDemo:
             except Exception as exc:
                 raise explain_agent_memory_error("long-term memory search", exc)
             recalled = [get_memory_text(memory) for memory in coerce_memories(response)]
-            show_memories("Recalled from Redis Agent Memory", recalled)
+            show_memories("Relevant Long-Term Memory", recalled)
             return {"recalled_memories": recalled}
 
         def call_model(state: AgentState) -> dict:
-            memory_context = "\n".join(f"- {memory}" for memory in state["recalled_memories"])
-            if not memory_context:
-                memory_context = "- No relevant long-term memories found."
+            session_context = "\n".join(f"- {event}" for event in state["session_context"])
+            if not session_context:
+                session_context = "- No previous turns in this session."
+
+            long_term_context = "\n".join(f"- {memory}" for memory in state["recalled_memories"])
+            if not long_term_context:
+                long_term_context = "- No relevant long-term memories found."
 
             system_prompt = f"""You are a polished travel concierge.
 
-Use the relevant long-term memories when they help, but do not mention implementation details.
+Use short-term memory for continuity within the current session.
+Use long-term memory for durable user facts, preferences, and constraints.
+Do not mention implementation details.
 Keep answers concise, specific, and naturally personalized.
 
+Short-term memory from this session:
+{session_context}
+
 Relevant long-term memories:
-{memory_context}
+{long_term_context}
 """
             response = self.llm.invoke([SystemMessage(content=system_prompt), *state["messages"]])
-            console.print(Panel(message_text(response), title="Assistant", border_style="green"))
+            console.print(Panel(message_text(response), title="🤖 AI", border_style="green"))
             return {"messages": [response]}
 
         def write_memory(state: AgentState) -> dict:
@@ -212,12 +268,22 @@ Relevant long-term memories:
                 [
                     SystemMessage(
                         content=(
-                            "Extract only durable user facts, preferences, constraints, "
-                            "or stable travel context worth remembering for future sessions. "
-                            "Skip transient requests and anything already implied by the assistant."
+                            "Extract only durable user facts, persistent preferences, and stable constraints "
+                            "that the user explicitly states in the current message and that should help in future "
+                            "unrelated sessions. Do not extract active task details, current itinerary details, "
+                            "dates, destinations, booking requests, or other context that only matters for this "
+                            "conversation unless the user explicitly asks to remember it for later. Do not extract "
+                            "anything that is only mentioned by the assistant or already present in existing "
+                            "long-term memories."
                         )
                     ),
-                    HumanMessage(content=f"User: {user_text}\nAssistant: {assistant_text}"),
+                    HumanMessage(
+                        content=(
+                            f"Current user message:\n{user_text}\n\n"
+                            "Existing long-term memories:\n"
+                            + "\n".join(f"- {memory}" for memory in state["recalled_memories"])
+                        )
+                    ),
                 ]
             )
 
@@ -250,23 +316,26 @@ Relevant long-term memories:
             return {}
 
         builder = StateGraph(AgentState)
-        builder.add_node("retrieve_memories", retrieve_memories)
+        builder.add_node("retrieve_session_context", retrieve_session_context)
+        builder.add_node("retrieve_long_term_memories", retrieve_long_term_memories)
         builder.add_node("call_model", call_model)
         builder.add_node("write_memory", write_memory)
-        builder.add_edge(START, "retrieve_memories")
-        builder.add_edge("retrieve_memories", "call_model")
+        builder.add_edge(START, "retrieve_session_context")
+        builder.add_edge("retrieve_session_context", "retrieve_long_term_memories")
+        builder.add_edge("retrieve_long_term_memories", "call_model")
         builder.add_edge("call_model", "write_memory")
         builder.add_edge("write_memory", END)
         return builder.compile()
 
     def ask(self, graph, session_id: str, user_text: str) -> AgentState:
-        console.print(Panel(user_text, title=f"User ({session_id})", border_style="cyan"))
+        console.print(Panel(user_text, title=f"👤 User ({session_id})", border_style="cyan"))
         return graph.invoke(
             {
                 "messages": [HumanMessage(content=user_text)],
                 "owner_id": self.config.owner_id,
                 "session_id": session_id,
                 "namespace": self.config.namespace,
+                "session_context": [],
                 "recalled_memories": [],
             }
         )
@@ -279,15 +348,20 @@ Relevant long-term memories:
             api_key=self.config.agent_memory_api_key,
         ) as agent_memory:
             graph = self.build_graph(agent_memory)
-            console.rule("[bold]Redis Agent Memory + LangGraph Interactive Demo[/bold]")
-            show_demo_context(self.config, session)
+            console.rule("[bold]Redis Agent Memory with LangGraph Demo[/bold]")
             console.print(
-                "Type a message for the agent. Commands: [bold]/new[/bold] starts a fresh session, "
-                "[bold]/where[/bold] shows Redis Insight lookup values, [bold]/quit[/bold] exits."
+                Panel(
+                    "[bold]Type a message to chat with the agent.[/bold]\n\n"
+                    "[cyan]/new[/cyan]   Start a fresh session\n"
+                    "[cyan]/where[/cyan] Show Redis Insight lookup values\n"
+                    "[cyan]/quit[/cyan]  Exit the demo",
+                    title="Commands",
+                    border_style="blue",
+                )
             )
             while True:
                 try:
-                    user_text = input("\nYou> ").strip()
+                    user_text = input("\n👤 You> ").strip()
                 except EOFError:
                     break
                 if user_text.lower() in {"quit", "exit", "/quit", "/exit"}:
