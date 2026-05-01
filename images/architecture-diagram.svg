@@ -1,94 +1,134 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
-  <title id="title">Redis Agent Memory with LangGraph architecture</title>
-  <desc id="desc">Architecture diagram showing user input flowing through a LangGraph agent, OpenAI, and Redis Agent Memory for session memory and long-term memories.</desc>
+  <title id="title">Redis Agent Memory with LangGraph web architecture</title>
+  <desc id="desc">Architecture diagram for the web demo showing browser, Nginx, FastAPI, LangGraph, OpenAI, and Redis Agent Memory short-term and long-term memory flow.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#263238"/>
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#1f2933"/>
     </marker>
     <marker id="arrow-red" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="10" markerHeight="10" orient="auto-start-reverse">
-      <path d="M 0 0 L 12 6 L 0 12 z" fill="#C22032"/>
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#ff4438"/>
     </marker>
     <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#263238" flood-opacity="0.14"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#101820" flood-opacity="0.12"/>
     </filter>
     <style>
-      .bg { fill: #F7F8F6; }
-      .band { fill: #FFFFFF; stroke: #D9DED8; stroke-width: 1.5; }
-      .node { fill: #FFFFFF; stroke: #B8C2BC; stroke-width: 2; filter: url(#shadow); }
-      .node-red { fill: #FFF6F6; stroke: #C22032; stroke-width: 2.5; filter: url(#shadow); }
-      .node-green { fill: #F2FBF6; stroke: #2F855A; stroke-width: 2; filter: url(#shadow); }
-      .label { fill: #1F2933; font-family: Inter, Arial, sans-serif; font-size: 22px; font-weight: 700; }
-      .text { fill: #3B454E; font-family: Inter, Arial, sans-serif; font-size: 15px; }
-      .small { fill: #60717B; font-family: Inter, Arial, sans-serif; font-size: 13px; }
-      .eyebrow { fill: #C22032; font-family: Inter, Arial, sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 1px; }
-      .title { fill: #101820; font-family: Inter, Arial, sans-serif; font-size: 34px; font-weight: 800; }
-      .arrow { stroke: #263238; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
-      .arrow-red { stroke: #C22032; stroke-width: 2.5; fill: none; marker-end: url(#arrow-red); }
-      .arrow-dashed { stroke: #60717B; stroke-width: 2.2; stroke-dasharray: 7 7; fill: none; marker-end: url(#arrow); }
-      .pill { fill: #EFF3F1; stroke: #D1D8D4; stroke-width: 1; }
-      .step { fill: #C22032; font-family: Inter, Arial, sans-serif; font-size: 14px; font-weight: 800; }
+      .bg { fill: #f7f8f6; }
+      .panel { fill: #ffffff; stroke: #d7ddda; stroke-width: 1.5; }
+      .node { fill: #ffffff; stroke: #cbd5d1; stroke-width: 2; filter: url(#shadow); }
+      .node-soft { fill: #f8fbfc; stroke: #cbd5d1; stroke-width: 2; filter: url(#shadow); }
+      .node-red { fill: #fff4f3; stroke: #ff4438; stroke-width: 2.5; filter: url(#shadow); }
+      .node-dark { fill: #071b24; stroke: #071b24; stroke-width: 2; filter: url(#shadow); }
+      .lane { fill: #ffffff; stroke: #d7ddda; stroke-width: 1.5; }
+      .label { fill: #101820; font-family: Inter, Arial, sans-serif; font-size: 20px; font-weight: 800; }
+      .label-light { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-size: 20px; font-weight: 800; }
+      .text { fill: #3b454e; font-family: Inter, Arial, sans-serif; font-size: 14px; }
+      .text-light { fill: #dce6ea; font-family: Inter, Arial, sans-serif; font-size: 14px; }
+      .small { fill: #60717b; font-family: Inter, Arial, sans-serif; font-size: 12px; }
+      .eyebrow { fill: #ff4438; font-family: Inter, Arial, sans-serif; font-size: 12px; font-weight: 800; letter-spacing: 1px; }
+      .title { fill: #101820; font-family: Inter, Arial, sans-serif; font-size: 32px; font-weight: 900; }
+      .arrow { stroke: #1f2933; stroke-width: 2.5; fill: none; marker-end: url(#arrow); }
+      .arrow-red { stroke: #ff4438; stroke-width: 2.5; fill: none; marker-end: url(#arrow-red); }
+      .arrow-dashed { stroke: #60717b; stroke-width: 2.2; stroke-dasharray: 7 7; fill: none; marker-end: url(#arrow); }
+      .pill { fill: #eff3f1; stroke: #d1d8d4; stroke-width: 1; }
+      .pill-red { fill: #ff4438; stroke: #ff4438; stroke-width: 1; }
+      .step { fill: #ff4438; font-family: Inter, Arial, sans-serif; font-size: 13px; font-weight: 900; }
+      .step-light { fill: #ffffff; font-family: Inter, Arial, sans-serif; font-size: 13px; font-weight: 900; }
     </style>
   </defs>
 
-  <rect class="bg" width="1200" height="680"/>
-  <text class="title" x="60" y="64">Redis Agent Memory with LangGraph</text>
-  <text class="text" x="60" y="94">One interactive turn retrieves STM and LTM, calls the model, records the session, and writes durable memories.</text>
+  <rect class="bg" width="1200" height="620"/>
+  <text class="title" x="54" y="58">Redis Agent Memory with LangGraph</text>
+  <text class="text" x="54" y="88">Web demo flow: browser UI, FastAPI backend, LangGraph orchestration, Redis-backed STM/LTM, and deduped long-term memory writes.</text>
 
-  <rect class="band" x="50" y="128" width="1100" height="440" rx="22"/>
-  <text class="eyebrow" x="82" y="164">INTERACTIVE DEMO FLOW</text>
+  <rect class="lane" x="44" y="116" width="262" height="502" rx="20"/>
+  <text class="eyebrow" x="70" y="150">FRONTEND</text>
 
-  <rect class="node" x="80" y="236" width="150" height="118" rx="16"/>
-  <circle cx="155" cy="270" r="24" fill="#E9EEF0"/>
-  <path d="M143 271c0-9 5-16 12-16s12 7 12 16c0 7-5 13-12 13s-12-6-12-13z" fill="#60717B"/>
-  <path d="M123 316c9-18 23-27 32-27s23 9 32 27" fill="none" stroke="#60717B" stroke-width="8" stroke-linecap="round"/>
-  <text class="label" x="116" y="332">User</text>
+  <rect class="lane" x="332" y="116" width="402" height="502" rx="20"/>
+  <text class="eyebrow" x="358" y="150">BACKEND</text>
 
-  <rect class="node-green" x="300" y="214" width="210" height="164" rx="18"/>
-  <text class="step" x="326" y="248">1</text>
-  <text class="label" x="348" y="248">LangGraph</text>
-  <text class="label" x="348" y="276">Agent</text>
-  <text class="text" x="326" y="314">Coordinates the turn:</text>
-  <text class="small" x="326" y="340">retrieve, respond, write</text>
+  <rect class="lane" x="760" y="116" width="396" height="502" rx="20"/>
+  <text class="eyebrow" x="786" y="150">EXTERNAL SERVICES</text>
 
-  <rect class="node" x="590" y="166" width="220" height="134" rx="18"/>
-  <text class="step" x="616" y="200">2</text>
-  <text class="label" x="638" y="200">OpenAI</text>
-  <text class="label" x="638" y="228">chat model</text>
-  <text class="text" x="616" y="264">Generates the assistant</text>
-  <text class="text" x="616" y="286">response with memory context</text>
+  <rect class="node" x="70" y="182" width="210" height="130" rx="16"/>
+  <text class="step" x="94" y="216">1</text>
+  <text class="label" x="116" y="216">Browser UI</text>
+  <text class="text" x="94" y="250">Chat surface with STM,</text>
+  <text class="text" x="94" y="272">retrieved LTM, and new</text>
+  <text class="text" x="94" y="294">extracted LTM panels</text>
 
-  <rect class="node-red" x="900" y="214" width="220" height="164" rx="18"/>
-  <text class="step" x="926" y="248">3</text>
-  <text class="label" x="948" y="248">Redis Agent</text>
-  <text class="label" x="948" y="276">Memory</text>
-  <text class="text" x="926" y="314">Stores session memory</text>
-  <text class="text" x="926" y="338">and long-term memories</text>
+  <rect class="node" x="70" y="374" width="210" height="130" rx="16"/>
+  <text class="step" x="94" y="408">2</text>
+  <text class="label" x="116" y="408">Nginx</text>
+  <text class="text" x="94" y="442">Serves static HTML,</text>
+  <text class="text" x="94" y="464">CSS, and JavaScript</text>
+  <text class="text" x="94" y="486">Proxies /api requests</text>
 
-  <rect class="node" x="590" y="384" width="220" height="118" rx="18"/>
-  <text class="step" x="616" y="418">4</text>
-  <text class="label" x="638" y="418">Memory</text>
-  <text class="label" x="638" y="446">extraction</text>
-  <text class="text" x="616" y="478">Finds durable facts</text>
+  <rect class="node-soft" x="366" y="182" width="320" height="118" rx="16"/>
+  <text class="step" x="392" y="216">3</text>
+  <text class="label" x="414" y="216">FastAPI</text>
+  <text class="text" x="392" y="250">/api/sessions, /api/chat,</text>
+  <text class="text" x="392" y="272">/api/sessions/{id}/memory</text>
 
-  <path class="arrow" d="M230 295 H300"/>
-  <path class="arrow" d="M510 254 C540 220 552 210 590 210"/>
-  <path class="arrow" d="M810 232 C848 232 862 248 900 266"/>
-  <path class="arrow" d="M900 326 C858 346 842 390 810 424"/>
-  <path class="arrow-red" d="M590 438 C548 438 536 360 510 330"/>
-  <path class="arrow-dashed" d="M900 300 C815 318 610 344 510 314"/>
-  <path class="arrow" d="M300 330 C270 370 248 394 205 394 C160 394 135 372 124 352"/>
+  <rect class="node-red" x="366" y="346" width="320" height="188" rx="18"/>
+  <text class="step" x="392" y="380">4</text>
+  <text class="label" x="414" y="380">memory_service.py</text>
+  <text class="text" x="392" y="416">LangGraph turn graph:</text>
+  <text class="text" x="410" y="444">retrieve STM</text>
+  <text class="text" x="410" y="468">search relevant LTM</text>
+  <text class="text" x="410" y="492">call model</text>
+  <text class="text" x="410" y="516">write session + accepted LTM</text>
 
-  <rect class="pill" x="346" y="404" width="138" height="34" rx="17"/>
-  <text class="small" x="371" y="426">session_id</text>
-  <rect class="pill" x="346" y="448" width="138" height="34" rx="17"/>
-  <text class="small" x="375" y="470">owner_id</text>
-  <rect class="pill" x="346" y="492" width="138" height="34" rx="17"/>
-  <text class="small" x="371" y="514">namespace</text>
+  <rect class="node-dark" x="794" y="164" width="322" height="144" rx="18"/>
+  <text class="step-light" x="820" y="200">5</text>
+  <text class="label-light" x="842" y="200">OpenAI</text>
+  <text class="text-light" x="820" y="236">Generates assistant responses</text>
+  <text class="text-light" x="820" y="260">Extracts candidate durable</text>
+  <text class="text-light" x="820" y="284">facts and preferences</text>
 
-  <text class="small" x="536" y="190">LLM call</text>
-  <text class="small" x="820" y="220">response</text>
-  <text class="small" x="818" y="398">turn text</text>
-  <text class="small" x="640" y="348">STM + relevant LTM</text>
-  <text class="small" x="522" y="432">durable memories</text>
-  <text class="small" x="158" y="415">assistant reply</text>
+  <rect class="node-red" x="794" y="374" width="322" height="178" rx="18"/>
+  <text class="step" x="820" y="410">6</text>
+  <text class="label" x="842" y="410">Redis Agent Memory</text>
+  <text class="text" x="820" y="448">Session memory stores STM</text>
+  <text class="text" x="820" y="472">Long-term memory stores</text>
+  <text class="text" x="820" y="496">durable facts/preferences</text>
+  <text class="text" x="820" y="520">delete_session_memory clears STM</text>
+
+  <path class="arrow" d="M175 312 V374"/>
+  <text class="small" x="190" y="348">static app</text>
+
+  <path class="arrow" d="M280 438 H366"/>
+  <text class="small" x="286" y="420">/api/*</text>
+
+  <path class="arrow" d="M526 300 V346"/>
+  <text class="small" x="544" y="330">request</text>
+
+  <path class="arrow" d="M686 420 C736 420 744 224 794 224"/>
+  <text class="small" x="706" y="300">STM + LTM prompt</text>
+
+  <path class="arrow" d="M794 266 C742 300 738 476 686 476"/>
+  <text class="small" x="694" y="356">assistant + extraction</text>
+
+  <path class="arrow-red" d="M686 438 H794"/>
+  <text class="small" x="706" y="458">read/write STM</text>
+
+  <path class="arrow-red" d="M794 500 C744 566 432 580 410 534"/>
+  <text class="small" x="746" y="584">search LTM</text>
+  <text class="small" x="746" y="602">dedupe + bulk create accepted new LTM</text>
+
+  <path class="arrow-dashed" d="M366 252 C326 252 322 246 280 246"/>
+  <text class="small" x="292" y="235">JSON response</text>
+
+  <rect class="pill-red" x="92" y="526" width="42" height="34" rx="6"/>
+  <text class="label-light" x="107" y="550">+</text>
+  <rect class="pill" x="146" y="526" width="42" height="34" rx="6"/>
+  <text class="label" x="162" y="550">×</text>
+  <text class="small" x="200" y="540">session chip controls:</text>
+  <text class="small" x="200" y="558">new session and delete STM</text>
+
+  <rect class="pill" x="388" y="556" width="106" height="34" rx="17"/>
+  <text class="small" x="414" y="578">session_id</text>
+  <rect class="pill" x="506" y="556" width="96" height="34" rx="17"/>
+  <text class="small" x="530" y="578">owner_id</text>
+  <rect class="pill" x="614" y="556" width="96" height="34" rx="17"/>
+  <text class="small" x="636" y="578">namespace</text>
 </svg>

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Redis Agent Memory with LangGraph</title>
+    <link rel="stylesheet" href="/styles.css?v=session-actions-topbar" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="chat-pane">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Redis Agent Memory</p>
+            <h1>LangGraph Travel Agent</h1>
+          </div>
+          <div class="session-chip">
+            <div class="session-copy">
+              <span>Session</span>
+              <strong id="sessionId">Starting...</strong>
+            </div>
+            <div class="session-actions" aria-label="Session actions">
+              <button id="newSessionButton" type="button" title="New session" aria-label="New session">+</button>
+              <button
+                id="deleteMemoryButton"
+                type="button"
+                class="secondary"
+                title="Delete short-term memory"
+                aria-label="Delete short-term memory"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <div id="messages" class="messages" aria-live="polite"></div>
+
+        <form id="chatForm" class="composer">
+          <input
+            id="messageInput"
+            autocomplete="off"
+            placeholder="Ask for travel help..."
+            required
+          />
+          <button id="sendButton" type="submit">Send</button>
+        </form>
+      </section>
+
+      <aside class="memory-pane">
+        <section class="memory-section">
+          <div class="section-heading">
+            <span>STM</span>
+            <h2>Current Session</h2>
+          </div>
+          <ul id="stmList" class="memory-list empty">
+            <li>No short-term memory yet.</li>
+          </ul>
+        </section>
+
+        <section class="memory-section">
+          <div class="section-heading">
+            <span>LTM</span>
+            <h2>Retrieved Long-Term Memory</h2>
+          </div>
+          <ul id="ltmList" class="memory-list empty">
+            <li>No long-term memory retrieved yet.</li>
+          </ul>
+        </section>
+
+        <section class="memory-section">
+          <div class="section-heading">
+            <span>New</span>
+            <h2>Extracted Long-Term Memory</h2>
+          </div>
+          <ul id="writtenList" class="memory-list empty">
+            <li>No long-term memory written yet.</li>
+          </ul>
+        </section>
+      </aside>
+    </main>
+
+    <script src="/app.js?v=session-actions-topbar"></script>
+  </body>
+</html>

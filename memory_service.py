@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import argparse
 import hashlib
 import os
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -15,13 +15,9 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
 from redis_agent_memory import AgentMemory, errors, models
-from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 from typing_extensions import TypedDict
 
 
-console = Console()
 DEMO_SOURCE = "langgraph-demo"
 SESSION_CONTEXT_LIMIT = 12
 
@@ -43,6 +39,7 @@ class AgentState(TypedDict):
     namespace: str
     session_context: list[str]
     recalled_memories: list[str]
+    extracted_memories: list[str]
 
 
 @dataclass(frozen=True)
@@ -54,6 +51,16 @@ class DemoConfig:
     owner_id: str
     namespace: str
     agent_id: str
+
+
+@dataclass(frozen=True)
+class TurnResult:
+    session_id: str
+    user_text: str
+    assistant_text: str
+    session_context: list[str]
+    long_term_memories: list[str]
+    extracted_memories: list[str]
 
 
 def require_env(name: str) -> str:
@@ -100,8 +107,12 @@ def memory_id(owner_id: str, namespace: str, text: str) -> str:
     return f"demo-{digest[:32]}"
 
 
+def normalize_memory_text(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", text.lower())).strip()
+
+
 def new_session_id() -> str:
-    return f"interactive-{uuid.uuid4().hex[:8]}"
+    return f"session-{uuid.uuid4().hex[:8]}"
 
 
 def coerce_memories(response: object) -> list[object]:
@@ -153,7 +164,7 @@ def explain_agent_memory_error(operation: str, exc: Exception) -> RuntimeError:
     return RuntimeError(f"{hint}\n\nOriginal error: {exc}")
 
 
-class RedisAgentMemoryLangGraphDemo:
+class RedisAgentMemoryService:
     def __init__(self, config: DemoConfig) -> None:
         self.config = config
         self.llm = ChatOpenAI(model=config.openai_model, temperature=0.2)
@@ -165,7 +176,6 @@ class RedisAgentMemoryLangGraphDemo:
                 response = agent_memory.get_session_memory(session_id=state["session_id"])
             except Exception as exc:
                 if is_not_found_error(exc):
-                    show_memories("Short-Term Memory for Current Session", [])
                     return {"session_context": []}
                 raise explain_agent_memory_error("session memory read", exc)
 
@@ -174,8 +184,6 @@ class RedisAgentMemoryLangGraphDemo:
                 text = get_event_text(event).strip()
                 if text:
                     session_context.append(f"{get_event_role(event)}: {text}")
-
-            show_memories("Short-Term Memory for Current Session", session_context)
             return {"session_context": session_context}
 
         def retrieve_long_term_memories(state: AgentState) -> dict:
@@ -200,7 +208,6 @@ class RedisAgentMemoryLangGraphDemo:
             except Exception as exc:
                 raise explain_agent_memory_error("long-term memory search", exc)
             recalled = [get_memory_text(memory) for memory in coerce_memories(response)]
-            show_memories("Relevant Long-Term Memory", recalled)
             return {"recalled_memories": recalled}
 
         def call_model(state: AgentState) -> dict:
@@ -226,7 +233,6 @@ Relevant long-term memories:
 {long_term_context}
 """
             response = self.llm.invoke([SystemMessage(content=system_prompt), *state["messages"]])
-            console.print(Panel(message_text(response), title="🤖 AI", border_style="green"))
             return {"messages": [response]}
 
         def write_memory(state: AgentState) -> dict:
@@ -239,7 +245,7 @@ Relevant long-term memories:
                 None,
             )
             if user_message is None or assistant_message is None:
-                return {}
+                return {"extracted_memories": []}
 
             user_text = message_text(user_message)
             assistant_text = message_text(assistant_message)
@@ -289,10 +295,19 @@ Relevant long-term memories:
 
             records = []
             extracted_texts = []
+            known_memory_texts = {
+                normalize_memory_text(memory)
+                for memory in state["recalled_memories"]
+            }
+            accepted_memory_texts = set(known_memory_texts)
             for memory in extraction.memories:
                 text = memory.text.strip()
                 if not text:
                     continue
+                normalized_text = normalize_memory_text(text)
+                if not normalized_text or normalized_text in accepted_memory_texts:
+                    continue
+                accepted_memory_texts.add(normalized_text)
                 record_id = memory_id(state["owner_id"], state["namespace"], text)
                 extracted_texts.append(text)
                 records.append(
@@ -312,8 +327,7 @@ Relevant long-term memories:
                     agent_memory.bulk_create_long_term_memories(memories=records)
                 except Exception as exc:
                     raise explain_agent_memory_error("long-term memory write", exc)
-            show_memories("Written as Long-Term Memory", extracted_texts)
-            return {}
+            return {"extracted_memories": extracted_texts}
 
         builder = StateGraph(AgentState)
         builder.add_node("retrieve_session_context", retrieve_session_context)
@@ -327,9 +341,9 @@ Relevant long-term memories:
         builder.add_edge("write_memory", END)
         return builder.compile()
 
-    def ask(self, graph, session_id: str, user_text: str) -> AgentState:
-        console.print(Panel(user_text, title=f"👤 User ({session_id})", border_style="cyan"))
-        return graph.invoke(
+    def run_turn(self, agent_memory: AgentMemory, session_id: str, user_text: str) -> TurnResult:
+        graph = self.build_graph(agent_memory)
+        state = graph.invoke(
             {
                 "messages": [HumanMessage(content=user_text)],
                 "owner_id": self.config.owner_id,
@@ -337,75 +351,40 @@ Relevant long-term memories:
                 "namespace": self.config.namespace,
                 "session_context": [],
                 "recalled_memories": [],
+                "extracted_memories": [],
             }
         )
+        assistant_message = next(
+            (message for message in reversed(state["messages"]) if isinstance(message, AIMessage)),
+            None,
+        )
+        return TurnResult(
+            session_id=session_id,
+            user_text=user_text,
+            assistant_text=message_text(assistant_message) if assistant_message else "",
+            session_context=state["session_context"],
+            long_term_memories=state["recalled_memories"],
+            extracted_memories=state["extracted_memories"],
+        )
 
-    def run_interactive(self, session_id: str | None) -> None:
-        session = session_id or new_session_id()
-        with AgentMemory(
-            self.config.agent_memory_server_url,
-            store_id=self.config.agent_memory_store_id,
-            api_key=self.config.agent_memory_api_key,
-        ) as agent_memory:
-            graph = self.build_graph(agent_memory)
-            console.rule("[bold]Redis Agent Memory with LangGraph Demo[/bold]")
-            console.print(
-                Panel(
-                    "[bold]Type a message to chat with the agent.[/bold]\n\n"
-                    "[cyan]/new[/cyan]   Start a new session memory\n"
-                    "[cyan]/delete[/cyan] Delete current session memory\n"
-                    "[cyan]/quit[/cyan]  Exit the demo",
-                    title="Commands",
-                    border_style="blue",
-                )
-            )
-            while True:
-                try:
-                    user_text = input("\n👤 You> ").strip()
-                except EOFError:
-                    break
-                if user_text.lower() in {"quit", "exit", "/quit", "/exit"}:
-                    break
-                if user_text == "/new":
-                    session = new_session_id()
-                    console.print(Panel(f"Started fresh session: {session}", border_style="blue"))
-                    continue
-                if user_text == "/delete":
-                    try:
-                        agent_memory.delete_session_memory(session_id=session)
-                    except Exception as exc:
-                        if not is_not_found_error(exc):
-                            raise explain_agent_memory_error("session memory delete", exc)
-                    console.print(Panel(f"Cleared short-term memory for session: {session}", border_style="blue"))
-                    continue
-                if user_text:
-                    self.ask(graph, session, user_text)
+    def read_session_context(self, agent_memory: AgentMemory, session_id: str) -> list[str]:
+        try:
+            response = agent_memory.get_session_memory(session_id=session_id)
+        except Exception as exc:
+            if is_not_found_error(exc):
+                return []
+            raise explain_agent_memory_error("session memory read", exc)
 
+        session_context = []
+        for event in coerce_events(response)[-SESSION_CONTEXT_LIMIT:]:
+            text = get_event_text(event).strip()
+            if text:
+                session_context.append(f"{get_event_role(event)}: {text}")
+        return session_context
 
-def show_memories(title: str, memories: list[str]) -> None:
-    table = Table(title=title, show_header=True, header_style="bold magenta")
-    table.add_column("#", style="dim", width=4)
-    table.add_column("Memory")
-    if not memories:
-        table.add_row("-", "None")
-    else:
-        for index, memory in enumerate(memories, start=1):
-            table.add_row(str(index), memory)
-    console.print(table)
-
-
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Redis Agent Memory + LangGraph demo.")
-    parser.add_argument("--session-id", help="Session ID to use in interactive mode.")
-    return parser.parse_args()
-
-
-def main() -> None:
-    args = parse_args()
-    config = load_config()
-    demo = RedisAgentMemoryLangGraphDemo(config)
-    demo.run_interactive(args.session_id)
-
-
-if __name__ == "__main__":
-    main()
+    def delete_session_memory(self, agent_memory: AgentMemory, session_id: str) -> None:
+        try:
+            agent_memory.delete_session_memory(session_id=session_id)
+        except Exception as exc:
+            if not is_not_found_error(exc):
+                raise explain_agent_memory_error("session memory delete", exc)

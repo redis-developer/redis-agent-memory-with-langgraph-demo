@@ -4,13 +4,14 @@
 
 This demo demonstrates how [Redis Agent Memory](https://pypi.org/project/redis-agent-memory/) can add memory to a LangGraph agent. Built with Python, LangGraph, OpenAI, and the `redis-agent-memory` Python client, it shows how an agent can use session-scoped short-term memory for the current conversation and durable long-term memory for user facts and preferences across sessions.
 
-The demo runs as an interactive terminal assistant. You type messages into the agent, observe how session memory and long-term memory are stored and retrieved, inspect data using Redis Insight when useful, start a fresh session, and then ask follow-up questions that rely on durable long-term memory.
+The demo runs as a lightweight web app. You chat with the agent, observe how session memory and long-term memory are stored and retrieved, inspect data using Redis Insight when useful, start a fresh session from the session chip, and then ask follow-up questions that rely on durable long-term memory.
 
 ## Table of Contents
 
 - [Demo Objectives](#demo-objectives)
 - [Setup](#setup)
 - [Running the Demo](#running-the-demo)
+- [Web UI](#web-ui)
 - [Architecture](#architecture)
 - [Known Issues](#known-issues)
 - [Resources](#resources)
@@ -30,7 +31,7 @@ The demo runs as an interactive terminal assistant. You type messages into the a
 
 ### Dependencies
 
-- [Docker](https://docs.docker.com/get-docker/) for Docker-based runs
+- [Docker](https://docs.docker.com/get-docker/) for running the web UI
 - [uv](https://docs.astral.sh/uv/) for local Python runs
 - [Redis Agent Memory Server](https://redis.github.io/agent-memory-server)
 - [Redis Insight](https://redis.io/insight/) for optional memory inspection
@@ -47,7 +48,7 @@ This demo does not deploy Redis Agent Memory Server. Before running the demo, ma
 
 ### Configuration
 
-#### Docker Setup
+#### Setup
 
 1. Clone the repository:
 
@@ -75,23 +76,25 @@ This demo does not deploy Redis Agent Memory Server. Before running the demo, ma
 | `DEMO_NAMESPACE`            | No       | Logical namespace for this demo's memories.                   |
 | `DEMO_AGENT_ID`             | No       | Actor ID used when writing assistant session events.          |
 
-4. Build and run the interactive demo:
+4. Build and run the web UI:
 
    ```sh
-   docker compose run --rm demo
+   docker compose up --build
    ```
 
-#### Local Python Setup
+   Open `http://localhost:8080`.
 
-If you prefer to run the demo without Docker, use the checked-in lockfile:
+#### Local Backend Setup
+
+The recommended path is Docker Compose because it starts both Nginx and FastAPI. For backend-only development, use the checked-in lockfile:
 
 ```sh
 cp .env.example .env
 uv sync --locked
-uv run python demo.py
+uv run uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Edit `.env` before starting the demo.
+Edit `.env` before starting the backend.
 
 If you previously created `.venv` with a different Python version and see an error like `ModuleNotFoundError: No module named 'encodings'`, recreate the environment:
 
@@ -99,68 +102,72 @@ If you previously created `.venv` with a different Python version and see an err
 deactivate 2>/dev/null || true
 rm -rf .venv
 uv sync --locked
-uv run python demo.py
+uv run uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
 ## Running the Demo
 
-Start the interactive assistant:
+Open `http://localhost:8080`.
 
-```sh
-docker compose run --rm demo
-```
-
-If you installed the demo locally with Python, use:
-
-```sh
-uv run python demo.py
-```
-
-The demo opens an interactive prompt:
-
-```text
-👤 You>
-```
-
-Each turn prints the short-term memory loaded for the current session, the relevant long-term memories retrieved for the current request, and any newly extracted long-term memories.
+The web UI shows the short-term memory loaded for the current session, the relevant long-term memories retrieved for the current request, and any accepted newly extracted long-term memories.
 
 ### Memory Model
 
 The demo intentionally separates two memory scopes:
 
-| Memory scope      | Backed by Redis Agent Memory | Used for                                                    |
-|:------------------|:-----------------------------|:------------------------------------------------------------|
-| Short-term memory | Session memory               | Current conversation context, active itinerary details, and follow-up continuity. |
-| Long-term memory  | Long-term memory             | Durable user facts, persistent preferences, and stable constraints. |
+| Memory scope            | Backed by Redis Agent Memory | Used for                                                    |
+|:------------------------|:-----------------------------|:------------------------------------------------------------|
+| Short-term memory (STM) | Session memory               | Current conversation context, active itinerary details, and follow-up continuity. |
+| Long-term memory (LTM)  | Long-term memory             | Durable user facts, persistent preferences, and stable constraints. |
 
-Current trip details such as dates, destinations, and booking requests stay in short-term memory unless the user explicitly asks the agent to remember them for later. Durable details such as a user's name or recurring travel preferences can be extracted into long-term memory.
+Current trip details such as dates, destinations, and booking requests stay in short-term memory unless the user explicitly asks the agent to remember them for later. Durable details such as a user's name or recurring travel preferences can be extracted into long-term memory. Before writing and displaying newly extracted long-term memory, the backend filters out memories that already appeared in the retrieved long-term memory list.
 
 ### Examples of Interactions
 
 - "My name is Ricardo."
-- "Remember that I prefer short answers."
+- "Remember that I prefer flying Delta."
 - "I like vegetarian restaurants, but I do not like cilantro."
 - "I am planning a trip to Lisbon next month."
-- `/new`
-- `/delete`
 - "Fresh session: what do you remember about me?"
 - "Can you recommend a dinner plan for Lisbon?"
 
-### Useful Commands
+### UI Actions
 
-- `/new` starts a fresh short-term memory session while keeping the same long-term memory owner.
-- `/delete` deletes short-term memory for the current session while keeping long-term memory intact.
-- `/quit` exits the demo.
+- **+** in the session chip starts a fresh short-term memory session while keeping the same long-term memory owner.
+- **×** in the session chip deletes short-term memory for the current session while keeping long-term memory intact.
 
-### Suggested Recording Flow
+## Web UI
 
-1. Start the demo with `uv run python demo.py`.
+The web UI keeps the frontend deliberately small: Nginx serves static HTML, CSS, and JavaScript, while FastAPI handles `/api/*` requests.
+
+```text
+Browser
+  -> Nginx static frontend
+  -> FastAPI backend
+  -> LangGraph + Redis Agent Memory
+```
+
+The frontend shows the chat, current session ID, short-term memory loaded for the current session, relevant long-term memories retrieved for the latest turn, and accepted new durable memories extracted from the latest user message. Session controls live in the session chip so the memory panels stay focused on STM, retrieved LTM, and newly extracted LTM. The UI uses a Redis-red accent for the primary actions and memory labels.
+
+The backend exposes:
+
+| Endpoint                           | Purpose                                      |
+|:-----------------------------------|:---------------------------------------------|
+| `POST /api/sessions`               | Start a new session.                         |
+| `POST /api/chat`                   | Run one agent turn.                          |
+| `GET /api/sessions/{id}/memory`    | Read current session short-term memory.      |
+| `DELETE /api/sessions/{id}/memory` | Delete current session short-term memory.    |
+| `GET /api/health`                  | Basic backend health check.                  |
+
+### Suggested Demo Flow
+
+1. Start the demo with `docker compose up --build`.
 2. Ask for help with a multi-turn travel request and notice the session context appearing as short-term memory.
 3. Tell the agent a durable fact or recurring preference.
 4. Inspect Redis Insight to show session events and newly extracted long-term memory.
-5. Type `/new` to start a fresh short-term memory session.
+5. Click **+** in the session chip to start a fresh short-term memory session.
 6. Ask the agent a question that relies on durable long-term memory.
-7. Use `/delete` to delete the current session memory without deleting durable long-term memory.
+7. Click **×** in the session chip to delete the current session memory without deleting durable long-term memory.
 8. Inspect Redis Insight again to show the memory being reused.
 
 ## Architecture
@@ -172,8 +179,9 @@ The demo uses LangGraph to model one agent turn as a small graph while Redis Age
 3. Inject both memory contexts into the OpenAI system prompt.
 4. Generate the assistant response.
 5. Write the user and assistant messages as session events.
-6. Extract only durable facts and preferences from the turn.
-7. Write extracted long-term memories back to Redis Agent Memory.
+6. Extract candidate durable facts and preferences from the turn.
+7. Filter out candidates that duplicate long-term memories already retrieved for the request.
+8. Write accepted new long-term memories back to Redis Agent Memory.
 
 ![Redis Agent Memory with LangGraph architecture](images/architecture-diagram.png)
 
@@ -182,7 +190,7 @@ The demo uses LangGraph to model one agent turn as a small graph while Redis Age
 - The demo requires a reachable Agent Memory Server data-plane endpoint.
 - Memory extraction is performed by the LLM, so phrasing can vary between runs.
 - The demo uses Redis Agent Memory session APIs for short-term memory, not LangGraph's native checkpointer interface.
-- Re-running the same durable fact may create the same deterministic memory ID and depend on server-side idempotency behavior.
+- Re-running the same durable fact may create the same deterministic memory ID and depend on server-side idempotency behavior if the existing memory was not retrieved for that request.
 - Redis Insight inspection depends on how your Agent Memory Server stores data internally.
 
 ## Resources
