@@ -140,12 +140,7 @@ Current trip details such as dates, destinations, and booking requests stay in s
 
 The web UI keeps the frontend deliberately small: Nginx serves static HTML, CSS, and JavaScript, while FastAPI handles `/api/*` requests.
 
-```text
-Browser
-  -> Nginx static frontend
-  -> FastAPI backend
-  -> LangGraph + Redis Agent Memory
-```
+![web-ui-sample.png](images/web-ui-sample.png)
 
 The frontend shows the chat, current session ID, short-term memory loaded for the current session, relevant long-term memories retrieved for the latest turn, and accepted new durable memories extracted from the latest user message. Session controls live in the session chip so the memory panels stay focused on STM, retrieved LTM, and newly extracted LTM. The UI uses a Redis-red accent for the primary actions and memory labels.
 
