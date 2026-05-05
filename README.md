@@ -76,15 +76,13 @@ This demo does not deploy Redis Agent Memory Server. Before running the demo, ma
 | `DEMO_NAMESPACE`            | No       | Logical namespace for this demo's memories.                   |
 | `DEMO_AGENT_ID`             | No       | Actor ID used when writing assistant session events.          |
 
-4. Build and run the web UI:
+4. Build and run the app:
 
    ```sh
    docker compose up --build
    ```
 
-   Open `http://localhost:8080`.
-
-#### Local Backend Setup
+#### Alternative Setup
 
 The recommended path is Docker Compose because it starts both Nginx and FastAPI. For backend-only development, use the checked-in lockfile:
 
