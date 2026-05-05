@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException
@@ -9,6 +10,7 @@ from pydantic import BaseModel, Field
 from redis_agent_memory import AgentMemory
 
 
+logger = logging.getLogger("uvicorn.error")
 app = FastAPI(title="Redis Agent Memory with LangGraph Demo")
 app.add_middleware(
     CORSMiddleware,
@@ -41,6 +43,19 @@ class SessionMemoryResponse(BaseModel):
     short_term_memory: list[str]
 
 
+class HealthResponse(BaseModel):
+    status: str
+
+
+class AgentMemoryHealthResponse(BaseModel):
+    status: str
+
+
+class ReadinessResponse(BaseModel):
+    status: str
+    agent_memory: AgentMemoryHealthResponse
+
+
 @lru_cache
 def get_service() -> RedisAgentMemoryService:
     return RedisAgentMemoryService(load_config())
@@ -55,9 +70,28 @@ def agent_memory_client(service: RedisAgentMemoryService) -> AgentMemory:
     )
 
 
-@app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+@app.get("/api/health", response_model=HealthResponse)
+def health() -> HealthResponse:
+    return HealthResponse(status="ok")
+
+
+@app.get("/api/ready", response_model=ReadinessResponse)
+def ready() -> ReadinessResponse:
+    service = get_service()
+    try:
+        with agent_memory_client(service) as agent_memory:
+            agent_memory_health = agent_memory.health(timeout_ms=3000)
+    except Exception as exc:
+        logger.warning("Redis Agent Memory readiness check failed", exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Redis Agent Memory is not ready",
+        ) from exc
+
+    agent_memory_payload = AgentMemoryHealthResponse.model_validate(agent_memory_health.model_dump())
+    logger.debug("Redis Agent Memory readiness check succeeded: %s", agent_memory_payload.model_dump())
+
+    return ReadinessResponse(status="ok", agent_memory=agent_memory_payload)
 
 
 @app.post("/api/sessions", response_model=SessionResponse)

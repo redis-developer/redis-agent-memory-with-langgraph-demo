@@ -152,7 +152,8 @@ The backend exposes:
 | `POST /api/chat`                   | Run one agent turn.                          |
 | `GET /api/sessions/{id}/memory`    | Read current session short-term memory.      |
 | `DELETE /api/sessions/{id}/memory` | Delete current session short-term memory.    |
-| `GET /api/health`                  | Basic backend health check.                  |
+| `GET /api/health`                  | Backend liveness check.                      |
+| `GET /api/ready`                   | Backend readiness check, including Redis Agent Memory. |
 
 ### Suggested Demo Flow
 
