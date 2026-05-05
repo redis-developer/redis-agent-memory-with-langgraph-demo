@@ -5,7 +5,7 @@ from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from memory_service import RedisAgentMemoryService, load_config, new_session_id
+from .memory_service import RedisAgentMemoryService, load_config, new_session_id
 from pydantic import BaseModel, Field
 from redis_agent_memory import AgentMemory
 

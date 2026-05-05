@@ -19,5 +19,4 @@ dependencies = [
 ]
 
 [tool.setuptools]
-py-modules = ["memory_service"]
 packages = ["backend"]

@@ -6,7 +6,6 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 COPY pyproject.toml ./
-COPY memory_service.py ./
 COPY backend ./backend
 
 RUN pip install --no-cache-dir --upgrade pip \
