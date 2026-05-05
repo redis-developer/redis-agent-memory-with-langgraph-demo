@@ -105,6 +105,23 @@ uv sync --locked
 uv run uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
+#### Running the Tests
+
+The test suite requires no external services — no Redis connection, no OpenAI key. All network calls are mocked.
+
+Install the test dependencies and run pytest:
+
+```sh
+uv add --dev pytest httpx
+uv run pytest
+```
+
+The tests are organized into three files under `tests/`:
+
+- `test_utils.py` — pure utility functions (no mocking required)
+- `test_api.py` — all FastAPI endpoints via `TestClient`
+- `test_service.py` — `RedisAgentMemoryService` methods, including the LTM deduplication logic
+
 ## Running the Demo
 
 Open `http://localhost:8080`.
