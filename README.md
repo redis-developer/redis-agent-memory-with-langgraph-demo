@@ -11,8 +11,8 @@ The demo runs as a lightweight web app. You chat with the agent, observe how ses
 - [Demo Objectives](#demo-objectives)
 - [Setup](#setup)
 - [Running the Demo](#running-the-demo)
-- [Web UI](#web-ui)
 - [Architecture](#architecture)
+- [Running the Tests](#running-the-tests)
 - [Known Issues](#known-issues)
 - [Resources](#resources)
 - [Maintainers](#maintainers)
@@ -32,8 +32,7 @@ The demo runs as a lightweight web app. You chat with the agent, observe how ses
 ### Dependencies
 
 - [Docker](https://docs.docker.com/get-docker/) for running the web UI
-- [uv](https://docs.astral.sh/uv/) for local Python runs
-- [Redis Agent Memory Server](https://redis.github.io/agent-memory-server)
+- [Redis Agent Memory](https://pypi.org/project/redis-agent-memory/)
 - [Redis Insight](https://redis.io/insight/) for optional memory inspection
 - [OpenAI API key](https://platform.openai.com/api-keys)
 
@@ -44,7 +43,7 @@ The demo runs as a lightweight web app. You chat with the agent, observe how ses
 | [OpenAI](https://auth.openai.com/create-account) | LLM used to generate assistant responses and extract memories. |
 | [Redis Agent Memory](https://redis.io/try-free)  | Fully managed service for agent memory backed by Redis Cloud.  |
 
-This demo does not deploy Redis Agent Memory Server. Before running the demo, make sure you have an Agent Memory Server data-plane URL, store ID, and API key.
+This demo does not deploy Redis Agent Memory. Before running the demo, make sure you have an Agent Memory Server data-plane URL, store ID, and API key.
 
 ### Configuration
 
@@ -81,45 +80,7 @@ This demo does not deploy Redis Agent Memory Server. Before running the demo, ma
    ```sh
    docker compose up --build
    ```
-
-#### Alternative Setup
-
-The recommended path is Docker Compose because it starts both Nginx and FastAPI. For backend-only development, use the checked-in lockfile:
-
-```sh
-cp .env.example .env
-uv sync --locked
-uv run uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
-```
-
-Edit `.env` before starting the backend.
-
-If you previously created `.venv` with a different Python version and see an error like `ModuleNotFoundError: No module named 'encodings'`, recreate the environment:
-
-```sh
-deactivate 2>/dev/null || true
-rm -rf .venv
-uv sync --locked
-uv run uvicorn backend.app:app --reload --host 127.0.0.1 --port 8000
-```
-
-#### Running the Tests
-
-The test suite requires no external services — no Redis connection, no OpenAI key. All network calls are mocked.
-
-Install the test dependencies and run pytest:
-
-```sh
-uv add --dev pytest httpx
-uv run pytest
-```
-
-The tests are organized into three files under `tests/`:
-
-- `test_utils.py` — pure utility functions (no mocking required)
-- `test_api.py` — all FastAPI endpoints via `TestClient`
-- `test_service.py` — `RedisAgentMemoryService` methods, including the LTM deduplication logic
-
+   
 ## Running the Demo
 
 Open `http://localhost:8080`.
@@ -151,13 +112,15 @@ Current trip details such as dates, destinations, and booking requests stay in s
 - **+** in the session chip starts a fresh short-term memory session while keeping the same long-term memory owner.
 - **×** in the session chip deletes short-term memory for the current session while keeping long-term memory intact.
 
-## Web UI
+### Web UI
 
 The web UI keeps the frontend deliberately small: Nginx serves static HTML, CSS, and JavaScript, while FastAPI handles `/api/*` requests.
 
 ![web-ui-sample.png](images/web-ui-sample.png)
 
 The frontend shows the chat, current session ID, short-term memory loaded for the current session, relevant long-term memories retrieved for the latest turn, and accepted new durable memories extracted from the latest user message. Session controls live in the session chip so the memory panels stay focused on STM, retrieved LTM, and newly extracted LTM. The UI uses a Redis-red accent for the primary actions and memory labels.
+
+### Backend
 
 The backend exposes:
 
@@ -195,6 +158,23 @@ The demo uses LangGraph to model one agent turn as a small graph while Redis Age
 8. Write accepted new long-term memories back to Redis Agent Memory.
 
 ![Redis Agent Memory with LangGraph architecture](images/architecture-diagram.png)
+
+## Running the Tests
+
+The test suite requires no external services: no Redis connection, no OpenAI key. All network calls are mocked.
+
+Install the test dependencies and run pytest:
+
+```sh
+uv add --dev pytest httpx
+uv run pytest
+```
+
+The tests are organized into three files under `tests/`:
+
+- `test_utils.py` — pure utility functions (no mocking required)
+- `test_api.py` — all FastAPI endpoints via `TestClient`
+- `test_service.py` — `RedisAgentMemoryService` methods, including the LTM deduplication logic
 
 ## Known Issues
 
