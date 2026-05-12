@@ -208,3 +208,27 @@ class TestRunTurnDeduplication:
         service.run_turn(mock_agent_memory, "session-123", "Hi there.")
 
         assert mock_agent_memory.add_session_event.call_count == 2  # user + assistant
+
+    def test_bare_confirmation_produces_no_memory(self, service, mock_agent_memory):
+        # Regression: "yes" answering a clarifying question was previously extracted
+        # as "The user confirms or agrees with the previous statement or question."
+        self._setup_agent_memory(mock_agent_memory, existing_ltm_texts=[])
+        service.llm.invoke.return_value = AIMessage(content="Got it!")
+        service.extractor.invoke.return_value = MemoryExtraction(memories=[])
+
+        result = service.run_turn(mock_agent_memory, "session-123", "yes")
+
+        mock_agent_memory.bulk_create_long_term_memories.assert_not_called()
+        assert result.extracted_memories == []
+
+    def test_date_fragment_produces_no_memory(self, service, mock_agent_memory):
+        # Regression: "1st" answering "when do you fly?" was previously extracted
+        # as "The user prefers to be addressed as '1st'."
+        self._setup_agent_memory(mock_agent_memory, existing_ltm_texts=[])
+        service.llm.invoke.return_value = AIMessage(content="Got it, June 1st!")
+        service.extractor.invoke.return_value = MemoryExtraction(memories=[])
+
+        result = service.run_turn(mock_agent_memory, "session-123", "1st")
+
+        mock_agent_memory.bulk_create_long_term_memories.assert_not_called()
+        assert result.extracted_memories == []
