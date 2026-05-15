@@ -41,7 +41,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.23" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
-    { name = "redis-agent-memory", specifier = "==0.0.2" },
+    { name = "redis-agent-memory", specifier = "==0.0.4" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
 ]
 provides-extras = ["test"]
@@ -1030,16 +1030,16 @@ wheels = [
 
 [[package]]
 name = "redis-agent-memory"
-version = "0.0.2"
+version = "0.0.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpcore" },
     { name = "httpx" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7a/e5/2dedca76df3543346f862bec1dbbf8603e454538e141862c888f26de0df7/redis_agent_memory-0.0.2.tar.gz", hash = "sha256:78029dfd86523da62bd2c4983ecbb9d482b98e1bfb5033e8cd4f08d5a5948a75", size = 52260, upload-time = "2026-04-15T10:26:14.304Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/97/df/f4ef728a8b388464b04b3403ffefda80cd18c7e5bd0e403760aef27c53aa/redis_agent_memory-0.0.4.tar.gz", hash = "sha256:d10115cb8d4343bc6a5535915a59390684ebfeaff025297b9e21da5383dd3c45", size = 54460, upload-time = "2026-05-15T13:43:18.188Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ac/79/87b41e626e98d51160cdac77b3adc39ee847fecfa27ee6434c4e076c6f6d/redis_agent_memory-0.0.2-py3-none-any.whl", hash = "sha256:731bfd7118e7a75ef63d7b51fdf7667715387857045f47bf6d35d8edfcb24f49", size = 98960, upload-time = "2026-04-15T10:26:13.143Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/a0/630d07be1864bbcf377de774adb9ac80fe6751a75876b2291794c6e8bedd/redis_agent_memory-0.0.4-py3-none-any.whl", hash = "sha256:dbc11cbbe3bcffa8d47ff727e253cb88cf1a0e27cd971fd5c8836165f62cf5d5", size = 103862, upload-time = "2026-05-15T13:43:16.695Z" },
 ]
 
 [[package]]

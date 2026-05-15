@@ -14,7 +14,7 @@ dependencies = [
     "langgraph>=0.2.0",
     "pydantic>=2.7.0",
     "python-dotenv>=1.0.1",
-    "redis-agent-memory==0.0.2",
+    "redis-agent-memory==0.0.4",
     "uvicorn[standard]>=0.30.0",
 ]
 

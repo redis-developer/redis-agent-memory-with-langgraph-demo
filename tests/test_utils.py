@@ -139,11 +139,16 @@ class TestMessageText:
 # ---------------------------------------------------------------------------
 
 class TestCoerceMemories:
-    def test_object_with_memories_attr(self):
-        obj = SimpleNamespace(memories=["a", "b"])
+    def test_object_with_items_attr(self):
+        # 0.0.4+: SearchLongTermMemoryResponseContent uses .items
+        obj = SimpleNamespace(items=["a", "b"])
         assert coerce_memories(obj) == ["a", "b"]
 
-    def test_dict_with_memories_key(self):
+    def test_dict_with_items_key(self):
+        assert coerce_memories({"items": ["x"]}) == ["x"]
+
+    def test_dict_with_memories_key_fallback(self):
+        # legacy fallback for dict mocks using old "memories" key
         assert coerce_memories({"memories": ["x"]}) == ["x"]
 
     def test_object_missing_attr_returns_empty(self):
@@ -152,12 +157,13 @@ class TestCoerceMemories:
     def test_dict_missing_key_returns_empty(self):
         assert coerce_memories({}) == []
 
-    def test_none_memories_returns_empty(self):
-        assert coerce_memories({"memories": None}) == []
+    def test_items_takes_precedence_over_memories_in_dict(self):
+        assert coerce_memories({"items": ["i"], "memories": ["m"]}) == ["i"]
 
-    def test_attr_takes_precedence_over_dict_key(self):
-        obj = SimpleNamespace(memories=["from-attr"])
-        assert coerce_memories(obj) == ["from-attr"]
+    def test_dict_items_key_does_not_resolve_to_builtin_method(self):
+        # getattr({"items": [...]}, "items") returns the dict.items() method, not the value.
+        # coerce_memories must check isinstance(dict) first to avoid this trap.
+        assert coerce_memories({"items": ["x"]}) == ["x"]
 
 
 # ---------------------------------------------------------------------------

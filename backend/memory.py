@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import os
 import re
-import time
 import uuid
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
@@ -83,8 +83,8 @@ def load_config() -> DemoConfig:
     )
 
 
-def now_ms() -> int:
-    return int(time.time() * 1000)
+def now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 def message_text(message: AnyMessage) -> str:
@@ -116,10 +116,12 @@ def new_session_id() -> str:
 
 
 def coerce_memories(response: object) -> list[object]:
-    memories = getattr(response, "memories", None)
-    if memories is None and isinstance(response, dict):
-        memories = response.get("memories")
-    return list(memories or [])
+    if isinstance(response, dict):
+        return list(response.get("items", response.get("memories", [])) or [])
+    items = getattr(response, "items", None)
+    if items is not None:
+        return list(items)
+    return []
 
 
 def get_memory_text(memory: object) -> str:
@@ -256,7 +258,7 @@ Relevant long-term memories:
                     actor_id=state["owner_id"],
                     role=models.MessageRole.USER,
                     content=[{"text": user_text}],
-                    created_at=now_ms(),
+                    created_at=now(),
                     metadata={"source": DEMO_SOURCE},
                 )
                 agent_memory.add_session_event(
@@ -264,7 +266,7 @@ Relevant long-term memories:
                     actor_id=self.config.agent_id,
                     role=models.MessageRole.ASSISTANT,
                     content=[{"text": assistant_text}],
-                    created_at=now_ms(),
+                    created_at=now(),
                     metadata={"source": DEMO_SOURCE},
                 )
             except Exception as exc:

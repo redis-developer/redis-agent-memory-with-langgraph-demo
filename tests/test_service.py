@@ -134,7 +134,7 @@ class TestRunTurnDeduplication:
         """Configure the mock so session memory is empty and LTM returns existing_ltm_texts."""
         mock_agent_memory.get_session_memory.return_value = {"events": []}
         mock_agent_memory.search_long_term_memory.return_value = {
-            "memories": [{"text": t} for t in existing_ltm_texts]
+            "items": [{"text": t} for t in existing_ltm_texts]
         }
         mock_agent_memory.add_session_event.return_value = None
         mock_agent_memory.bulk_create_long_term_memories.return_value = None
