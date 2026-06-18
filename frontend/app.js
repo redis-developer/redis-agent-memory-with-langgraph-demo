@@ -53,6 +53,17 @@ function appendMessage(role, label, text) {
   els.messages.scrollTop = els.messages.scrollHeight;
 }
 
+function showTyping() {
+  const node = document.createElement("article");
+  node.className = "message ai typing";
+  node.innerHTML =
+    `<span class="message-label">🤖 Adviser</span>` +
+    `<div class="typing-dots"><span></span><span></span><span></span></div>`;
+  els.messages.append(node);
+  els.messages.scrollTop = els.messages.scrollHeight;
+  return node;
+}
+
 function renderList(element, items, emptyText) {
   element.innerHTML = "";
   element.classList.toggle("empty", items.length === 0);
@@ -169,11 +180,13 @@ async function createThread() {
 async function sendMessage(message) {
   setBusy(true);
   appendMessage("user", "👤 You", message);
+  const typing = showTyping();
   try {
     const payload = await api("/api/chat", {
       method: "POST",
       body: JSON.stringify({ thread_id: state.threadId, message }),
     });
+    typing.remove();
     setActiveThread(payload.thread_id, payload.title);
     appendMessage("ai", "🤖 Adviser", payload.assistant_message);
     renderList(els.stm, payload.short_term_memory, EMPTY.stm);
@@ -182,6 +195,7 @@ async function sendMessage(message) {
     // Refresh the sidebar so the auto-generated title and ordering update.
     await loadThreads();
   } catch (error) {
+    typing.remove();
     appendMessage("system", "Error", error.message);
   } finally {
     setBusy(false);
