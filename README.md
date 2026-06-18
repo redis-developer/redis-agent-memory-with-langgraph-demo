@@ -123,7 +123,7 @@ A normal fresh-chat question — yet the **LTM** panel shows *all* the accumulat
 ### Optional beats
 
 - **STM vs LTM** — drop a transient detail ("the flat I'm looking at is on Oak Lane"), confirm the assistant recalls it, click **Clear STM**, then ask again: it forgets the in-chat detail but still knows the durable profile (LTM).
-- **"Won't it get stuck on an old budget?"** — memory is curated, not append-only: changed facts are captured with a timestamp, deduplicated/consolidated, retrieval is recency-aware, and memories can be updated, expired (TTL), or deleted via the API — so the picture evolves with the customer.
+- **"Won't it get stuck on an old budget?"** — be precise here. Today the levers are: working memory expires on a TTL (the *Clear STM* beat); duplicate facts are prevented via content-hash deduplication; and long-term memories can be **updated, expired, or deleted via the API**. The full Agent Memory Server additionally offers policy-based **forgetting/decay** (age, inactivity, budget) and **recency/freshness-weighted retrieval**. What the product does **not** currently do on its own is automatically detect that a newer fact *semantically contradicts* an older one (e.g. a £500k budget superseding £340k) and retire the stale one — that's developer-managed (update/delete) or a roadmap question to confirm with Product, not an automatic behaviour. Do not stage the budget change as an automatic "watch it forget" moment.
 - **Persistence** — reload the page; the threads are still there (server-side in Redis), proving they are not just client state.
 
 After a live run, reset to the clean two-conversation baseline with `uv run python scripts/seed_demo.py --reset`.
