@@ -27,6 +27,7 @@ DEMO_CONFIG = DemoConfig(
     agent_memory_server_url="https://memory.example.com",
     agent_memory_store_id="store-test",
     agent_memory_api_key="key-test",
+    redis_url="redis://localhost:6379",
     owner_id="testuser",
     namespace="test-ns",
     agent_id="test-agent",

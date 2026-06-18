@@ -22,7 +22,7 @@ from backend.memory import (
     is_not_found_error,
     memory_id,
     message_text,
-    new_session_id,
+    new_thread_id,
     normalize_memory_text,
 )
 from redis_agent_memory import errors
@@ -92,23 +92,23 @@ class TestNormalizeMemoryText:
 
 
 # ---------------------------------------------------------------------------
-# new_session_id
+# new_thread_id
 # ---------------------------------------------------------------------------
 
-class TestNewSessionId:
+class TestNewThreadId:
     def test_prefix(self):
-        assert new_session_id().startswith("session-")
+        assert new_thread_id().startswith("thread-")
 
     def test_suffix_length(self):
-        suffix = new_session_id()[len("session-"):]
+        suffix = new_thread_id()[len("thread-"):]
         assert len(suffix) == 8
 
     def test_suffix_is_hex(self):
-        suffix = new_session_id()[len("session-"):]
+        suffix = new_thread_id()[len("thread-"):]
         assert re.fullmatch(r"[0-9a-f]+", suffix)
 
     def test_unique(self):
-        assert new_session_id() != new_session_id()
+        assert new_thread_id() != new_thread_id()
 
 
 # ---------------------------------------------------------------------------

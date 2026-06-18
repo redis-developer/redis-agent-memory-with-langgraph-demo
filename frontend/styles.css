@@ -32,17 +32,111 @@ input {
 
 .app-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-columns: 260px minmax(0, 1fr) 360px;
   gap: 20px;
   min-height: 100vh;
   padding: 24px;
 }
 
+.threads-pane,
 .chat-pane,
 .memory-pane {
   background: var(--panel);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
+}
+
+.threads-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: calc(100vh - 48px);
+  padding: 20px 16px;
+}
+
+.brand {
+  padding: 0 4px;
+}
+
+.brand-name {
+  font-size: 20px;
+  line-height: 1.15;
+}
+
+.new-thread {
+  width: 100%;
+  text-align: center;
+}
+
+.threads-label {
+  margin: 4px 4px 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.thread-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.thread-item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  cursor: pointer;
+}
+
+.thread-item:hover {
+  border-color: var(--accent-line);
+}
+
+.thread-item.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.thread-title {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-meta {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.thread-list.empty .thread-empty,
+li.thread-empty {
+  padding: 10px 12px;
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+  list-style: none;
+}
+
+.threads-footnote {
+  margin: 0 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.threads-footnote strong {
+  color: var(--redis);
 }
 
 .chat-pane {
@@ -206,13 +300,13 @@ button {
   font-weight: 800;
 }
 
-#newSessionButton,
+#newThreadButton,
 #sendButton {
   border-color: #ff4438;
   background: #ff4438;
 }
 
-#newSessionButton:hover,
+#newThreadButton:hover,
 #sendButton:hover {
   border-color: #e3362d;
   background: #e3362d;
@@ -280,15 +374,41 @@ button:disabled {
   font-style: italic;
 }
 
-@media (max-width: 920px) {
+@media (max-width: 1100px) {
+  .app-shell {
+    grid-template-columns: 220px minmax(0, 1fr);
+  }
+
+  .memory-pane {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    min-height: auto;
+  }
+
+  .memory-pane .memory-section {
+    flex: 1 1 240px;
+  }
+}
+
+@media (max-width: 720px) {
   .app-shell {
     grid-template-columns: 1fr;
     padding: 12px;
   }
 
+  .threads-pane,
   .chat-pane,
   .memory-pane {
     min-height: auto;
+  }
+
+  .threads-pane {
+    order: -1;
+  }
+
+  .thread-list {
+    max-height: 180px;
   }
 
   .topbar {

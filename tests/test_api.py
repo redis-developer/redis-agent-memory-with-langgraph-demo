@@ -12,7 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from backend.app import app
-from backend.memory import TurnResult
+from backend.memory import ThreadSummary, TurnResult
 
 
 # ---------------------------------------------------------------------------
@@ -80,64 +80,111 @@ class TestReadinessEndpoint:
         assert response.status_code == 503
 
 
-# ---------------------------------------------------------------------------
-# POST /api/sessions
-# ---------------------------------------------------------------------------
-
-class TestCreateSessionEndpoint:
-    def test_returns_200(self, client):
-        assert client.post("/api/sessions").status_code == 200
-
-    def test_returns_session_id(self, client):
-        data = client.post("/api/sessions").json()
-        assert "session_id" in data
-        assert data["session_id"].startswith("session-")
-
-    def test_session_ids_are_unique(self, client):
-        id1 = client.post("/api/sessions").json()["session_id"]
-        id2 = client.post("/api/sessions").json()["session_id"]
-        assert id1 != id2
+def _thread_summary(thread_id="thread-abc12345", title="Affordability", preview="hi") -> ThreadSummary:
+    return ThreadSummary(
+        thread_id=thread_id,
+        title=title,
+        preview=preview,
+        created_at=1000.0,
+        last_active=2000.0,
+    )
 
 
 # ---------------------------------------------------------------------------
-# GET /api/sessions/{session_id}/memory
+# GET /api/threads
 # ---------------------------------------------------------------------------
 
-class TestGetSessionMemoryEndpoint:
+class TestListThreadsEndpoint:
+    def test_returns_200(self, client, mock_service):
+        mock_service.list_threads.return_value = []
+        assert client.get("/api/threads").status_code == 200
+
+    def test_returns_thread_summaries(self, client, mock_service):
+        mock_service.list_threads.return_value = [_thread_summary()]
+        data = client.get("/api/threads").json()
+        assert data["threads"][0]["thread_id"] == "thread-abc12345"
+        assert data["threads"][0]["title"] == "Affordability"
+
+    def test_returns_502_on_service_error(self, client, mock_service):
+        mock_service.list_threads.side_effect = RuntimeError("Redis down")
+        assert client.get("/api/threads").status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# POST /api/threads
+# ---------------------------------------------------------------------------
+
+class TestCreateThreadEndpoint:
+    def test_returns_200(self, client, mock_service):
+        mock_service.create_thread.return_value = _thread_summary()
+        assert client.post("/api/threads").status_code == 200
+
+    def test_returns_thread_id(self, client, mock_service):
+        mock_service.create_thread.return_value = _thread_summary()
+        data = client.post("/api/threads").json()
+        assert data["thread_id"].startswith("thread-")
+
+
+# ---------------------------------------------------------------------------
+# GET /api/threads/{thread_id}/messages
+# ---------------------------------------------------------------------------
+
+class TestThreadMessagesEndpoint:
+    def test_returns_history(self, client, mock_service):
+        mock_service.read_thread_messages.return_value = [
+            {"role": "user", "text": "hi"},
+            {"role": "assistant", "text": "hello"},
+        ]
+        data = client.get("/api/threads/thread-abc12345/messages").json()
+        assert data["thread_id"] == "thread-abc12345"
+        assert data["messages"] == [
+            {"role": "user", "text": "hi"},
+            {"role": "assistant", "text": "hello"},
+        ]
+
+    def test_returns_502_on_service_error(self, client, mock_service):
+        mock_service.read_thread_messages.side_effect = RuntimeError("Redis down")
+        assert client.get("/api/threads/thread-abc12345/messages").status_code == 502
+
+
+# ---------------------------------------------------------------------------
+# GET /api/threads/{thread_id}/memory
+# ---------------------------------------------------------------------------
+
+class TestGetThreadMemoryEndpoint:
     def test_returns_200(self, client, mock_service):
         mock_service.read_session_context.return_value = []
-        assert client.get("/api/sessions/session-abc12345/memory").status_code == 200
+        assert client.get("/api/threads/thread-abc12345/memory").status_code == 200
 
     def test_returns_memory_list(self, client, mock_service):
         mock_service.read_session_context.return_value = ["user: hello", "assistant: hi"]
-        response = client.get("/api/sessions/session-abc12345/memory")
-        data = response.json()
-        assert data["session_id"] == "session-abc12345"
+        data = client.get("/api/threads/thread-abc12345/memory").json()
+        assert data["thread_id"] == "thread-abc12345"
         assert data["short_term_memory"] == ["user: hello", "assistant: hi"]
 
     def test_returns_502_on_service_error(self, client, mock_service):
         mock_service.read_session_context.side_effect = RuntimeError("Redis down")
-        assert client.get("/api/sessions/session-abc12345/memory").status_code == 502
+        assert client.get("/api/threads/thread-abc12345/memory").status_code == 502
 
 
 # ---------------------------------------------------------------------------
-# DELETE /api/sessions/{session_id}/memory
+# DELETE /api/threads/{thread_id}/memory
 # ---------------------------------------------------------------------------
 
-class TestDeleteSessionMemoryEndpoint:
+class TestDeleteThreadMemoryEndpoint:
     def test_returns_200(self, client, mock_service):
         mock_service.delete_session_memory.return_value = None
-        assert client.delete("/api/sessions/session-abc12345/memory").status_code == 200
+        assert client.delete("/api/threads/thread-abc12345/memory").status_code == 200
 
     def test_returns_empty_memory_list(self, client, mock_service):
         mock_service.delete_session_memory.return_value = None
-        data = client.delete("/api/sessions/session-abc12345/memory").json()
-        assert data["session_id"] == "session-abc12345"
+        data = client.delete("/api/threads/thread-abc12345/memory").json()
+        assert data["thread_id"] == "thread-abc12345"
         assert data["short_term_memory"] == []
 
     def test_returns_502_on_service_error(self, client, mock_service):
         mock_service.delete_session_memory.side_effect = RuntimeError("Redis down")
-        assert client.delete("/api/sessions/session-abc12345/memory").status_code == 502
+        assert client.delete("/api/threads/thread-abc12345/memory").status_code == 502
 
 
 # ---------------------------------------------------------------------------
@@ -146,11 +193,12 @@ class TestDeleteSessionMemoryEndpoint:
 
 def _make_turn_result(**kwargs) -> TurnResult:
     defaults = dict(
-        session_id="session-abc12345",
+        thread_id="thread-abc12345",
+        title="Affordability",
         user_text="Hello",
         assistant_text="Hi there!",
         session_context=["user: Hello"],
-        long_term_memories=["Prefers Delta"],
+        long_term_memories=["Prefers a 5-year fixed rate"],
         extracted_memories=["User said hello"],
     )
     return TurnResult(**{**defaults, **kwargs})
@@ -159,25 +207,28 @@ def _make_turn_result(**kwargs) -> TurnResult:
 class TestChatEndpoint:
     def test_returns_200(self, client, mock_service):
         mock_service.run_turn.return_value = _make_turn_result()
-        assert client.post("/api/chat", json={"message": "Hello", "session_id": "session-abc12345"}).status_code == 200
+        assert client.post("/api/chat", json={"message": "Hello", "thread_id": "thread-abc12345"}).status_code == 200
 
     def test_response_shape(self, client, mock_service):
         mock_service.run_turn.return_value = _make_turn_result()
-        data = client.post("/api/chat", json={"message": "Hello", "session_id": "session-abc12345"}).json()
-        assert data["session_id"] == "session-abc12345"
+        data = client.post("/api/chat", json={"message": "Hello", "thread_id": "thread-abc12345"}).json()
+        assert data["thread_id"] == "thread-abc12345"
+        assert data["title"] == "Affordability"
         assert data["user_message"] == "Hello"
         assert data["assistant_message"] == "Hi there!"
         assert data["short_term_memory"] == ["user: Hello"]
-        assert data["long_term_memory"] == ["Prefers Delta"]
+        assert data["long_term_memory"] == ["Prefers a 5-year fixed rate"]
         assert data["extracted_long_term_memory"] == ["User said hello"]
 
-    def test_generates_session_id_when_omitted(self, client, mock_service):
-        mock_service.run_turn.return_value = _make_turn_result(session_id="session-generated")
+    def test_creates_thread_when_omitted(self, client, mock_service):
+        mock_service.create_thread.return_value = _thread_summary(thread_id="thread-generated")
+        mock_service.run_turn.return_value = _make_turn_result(thread_id="thread-generated")
         response = client.post("/api/chat", json={"message": "Hi"})
         assert response.status_code == 200
-        # run_turn is called with positional args: (agent_memory, session_id, message)
+        # A new thread is created and its id is passed positionally to run_turn:
+        # (agent_memory, thread_id, message)
         positional_args = mock_service.run_turn.call_args.args
-        assert positional_args[1].startswith("session-")
+        assert positional_args[1] == "thread-generated"
 
     def test_rejects_empty_message(self, client):
         assert client.post("/api/chat", json={"message": ""}).status_code == 422
@@ -187,4 +238,4 @@ class TestChatEndpoint:
 
     def test_returns_502_on_service_error(self, client, mock_service):
         mock_service.run_turn.side_effect = RuntimeError("LLM failure")
-        assert client.post("/api/chat", json={"message": "Hello"}).status_code == 502
+        assert client.post("/api/chat", json={"message": "Hello", "thread_id": "thread-x"}).status_code == 502

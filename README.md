@@ -1,200 +1,187 @@
-# Redis Agent Memory with LangGraph Demo
+# UK Mortgage Assistant — Redis Agent Memory + LangGraph Demo
 
 ## Overview
 
-This demo demonstrates how [Redis Agent Memory](https://pypi.org/project/redis-agent-memory/) can add memory to a LangGraph agent. Built with Python, LangGraph, OpenAI, and the `redis-agent-memory` Python client, it shows how an agent can use session-scoped short-term memory for the current conversation and durable long-term memory for user facts and preferences across sessions.
+This demo is a **UK mortgage assistant** ("Albion Home Loans") that shows the value of agent memory: an assistant that remembers a customer across *separate conversations*, so they never have to re-explain their income, deposit, or preferences.
 
-The demo runs as a lightweight web app. You chat with the agent, observe how session memory and long-term memory are stored and retrieved, inspect data using Redis Insight when useful, start a fresh session from the session chip, and then ask follow-up questions that rely on durable long-term memory.
+It combines two Redis-backed layers:
+
+| Layer | Backed by | Role |
+|:--|:--|:--|
+| **Thread / session log** | [`langgraph-redis`](https://pypi.org/project/langgraph-checkpoint-redis/) `RedisSaver` checkpointer, keyed by `thread_id` | Durable per-conversation message history. Powers the **chat-thread selector** on the left — list, switch, and resume conversations. |
+| **Agent memory** | [`redis-agent-memory`](https://pypi.org/project/redis-agent-memory/) | **STM** = working-memory context for the active turn. **LTM** = durable borrower facts shared across *every* thread. |
+
+The punchline: switch to a different thread (a separate `langgraph-redis` log) and the assistant still knows the borrower (shared `redis-agent-memory` long-term memory).
 
 ## Table of Contents
 
 - [Demo Objectives](#demo-objectives)
 - [Setup](#setup)
+- [Seeding the Demo](#seeding-the-demo)
 - [Running the Demo](#running-the-demo)
 - [Architecture](#architecture)
 - [Running the Tests](#running-the-tests)
 - [Known Issues](#known-issues)
 - [Resources](#resources)
-- [Maintainers](#maintainers)
 - [License](#license)
 
 ## Demo Objectives
 
-- Demonstrate Redis as a memory persistence layer for agentic applications.
-- Show how to integrate Redis Agent Memory through the Python client.
-- Illustrate the LangGraph pattern of retrieving short-term and long-term memory before an LLM call.
-- Show the difference between session-scoped short-term memory and durable long-term memory.
-- Keep current conversation details in short-term memory while extracting only durable facts and preferences into long-term memory.
-- Provide a simple way to verify your Redis Agent Memory service endpoint.
+- Show Redis as the memory and persistence layer for an agentic application.
+- Use **`langgraph-redis`** as the durable thread log behind a multi-conversation chat selector.
+- Use **`redis-agent-memory`** for short-term (working) memory and durable long-term memory.
+- Demonstrate the core value of agent memory: **persistent, personalized experience across separate conversations** — state a fact once, and the assistant recalls it in a brand-new chat.
+- Keep transient conversation details in STM while promoting only durable borrower facts (income, deposit, first-time-buyer status, target area/price, product preferences) into LTM.
 
 ## Setup
 
 ### Dependencies
 
 - [Docker](https://docs.docker.com/get-docker/) for running the web UI
-- [Redis Agent Memory](https://pypi.org/project/redis-agent-memory/)
-- [Redis Insight](https://redis.io/insight/) for optional memory inspection
-- [OpenAI API key](https://platform.openai.com/api-keys)
-
-### Account Requirements
-
-| Account                                          | Description                                                    |
-|:-------------------------------------------------|:---------------------------------------------------------------|
-| [OpenAI](https://auth.openai.com/create-account) | LLM used to generate assistant responses and extract memories. |
-| [Redis Agent Memory](https://redis.io/try-free)  | Fully managed service for agent memory backed by Redis Cloud.  |
-
-This demo does not deploy Redis Agent Memory. Before running the demo, make sure you have an Agent Memory Server data-plane URL, store ID, and API key.
+- A **Redis** database with the Query Engine + JSON modules (Redis 8 or Redis Cloud) for the `langgraph-redis` checkpointer
+- A [Redis Agent Memory](https://redis.io/try-free) service (data-plane URL, store ID, API key)
+- An [OpenAI API key](https://platform.openai.com/api-keys)
 
 ### Configuration
 
-#### Setup
-
-1. Clone the repository:
-
-   ```sh
-   git clone <repository-url>
-   cd redis-agent-memory-with-langgraph-demo
-   ```
-
-2. Create your environment file:
+1. Clone the repository and create your environment file:
 
    ```sh
    cp .env.example .env
    ```
 
-3. Edit `.env` with your configuration:
+2. Edit `.env`:
 
-| Variable                    | Required | Description                                                   |
-|:----------------------------|:--------:|:--------------------------------------------------------------|
-| `OPENAI_API_KEY`            | Yes      | API key used by the LangGraph agent.                          |
-| `AGENT_MEMORY_SERVER_URL`   | Yes      | Agent Memory Server data-plane base URL.                      |
-| `AGENT_MEMORY_STORE_ID`     | Yes      | Store ID used by the Agent Memory Server API.                 |
-| `AGENT_MEMORY_API_KEY`      | Yes      | API key used by the Agent Memory Server API.                  |
-| `OPENAI_MODEL`              | No       | OpenAI model used for responses and memory extraction.        |
-| `DEMO_OWNER_ID`             | No       | Stable user identifier for long-term memories.                |
-| `DEMO_NAMESPACE`            | No       | Logical namespace for this demo's memories.                   |
-| `DEMO_AGENT_ID`             | No       | Actor ID used when writing assistant session events.          |
+| Variable | Required | Description |
+|:--|:--:|:--|
+| `OPENAI_API_KEY` | Yes | API key used by the LangGraph agent. |
+| `AGENT_MEMORY_SERVER_URL` | Yes | Agent Memory Server data-plane base URL. |
+| `AGENT_MEMORY_STORE_ID` | Yes | Store ID used by the Agent Memory Server API. |
+| `AGENT_MEMORY_API_KEY` | Yes | API key used by the Agent Memory Server API. |
+| `REDIS_URL` | Yes | Full Redis connection string for the `langgraph-redis` thread log, e.g. `redis://default:<password>@<host>:<port>` (use `rediss://` for TLS). |
+| `OPENAI_MODEL` | No | OpenAI model used for responses and memory extraction. |
+| `DEMO_OWNER_ID` | No | Stable borrower identifier for long-term memories (default `jordan-uk`). |
+| `DEMO_NAMESPACE` | No | Logical namespace for this demo's memories (default `mortgage-demo`). |
+| `DEMO_AGENT_ID` | No | Actor ID used when writing assistant session events (default `mortgage-adviser`). |
 
-4. Build and run the app:
+3. Build and run the app:
 
    ```sh
    docker compose up --build
    ```
-   
+
+The backend connects to `REDIS_URL` on startup and sets up the `RedisSaver` indexes automatically.
+
+## Seeding the Demo
+
+To open with a populated sidebar, run the seed script once after the services are up:
+
+```sh
+uv run python scripts/seed_demo.py
+```
+
+This replays **two short, realistic first-time-buyer conversations** that establish *part* of the borrower profile — who they are plus household income, then deposit and target property. The rest of the profile is added live during the demo (see the demo script below). Each conversation's durable facts are promoted to long-term memory.
+
+To wipe and re-seed (handy between live runs):
+
+```sh
+uv run python scripts/seed_demo.py --reset      # reset then seed
+uv run python scripts/seed_demo.py --reset-only # just wipe demo state
+```
+
 ## Running the Demo
 
 Open `http://localhost:8080`.
 
-The web UI shows the short-term memory loaded for the current session, the relevant long-term memories retrieved for the current request, and any accepted newly extracted long-term memories.
+- **Left pane** — the chat-thread selector. Create a new conversation, or click any thread to resume its full history (loaded from `langgraph-redis`).
+- **Centre** — the chat with the mortgage assistant.
+- **Right pane** — the live Redis Agent Memory view: **STM** (working memory this turn), **LTM** (durable borrower facts retrieved), and newly **Extracted** long-term memory.
 
-### Memory Model
+### Demo script (three-step arc)
 
-The demo intentionally separates two memory scopes:
+The demo builds up a borrower profile across conversations: seeded history → a new chat that uses some of it and adds more → a final new chat that synthesises everything.
 
-| Memory scope            | Backed by Redis Agent Memory | Used for                                                    |
-|:------------------------|:-----------------------------|:------------------------------------------------------------|
-| Short-term memory (STM) | Session memory               | Current conversation context, active itinerary details, and follow-up continuity. |
-| Long-term memory (LTM)  | Long-term memory             | Durable user facts, persistent preferences, and stable constraints. |
+**Step 1 — Show the history (seeded; just click).** Click both sidebar threads and read them out:
+- *First-time buyer affordability* — "We're first-time buyers in Bristol… combined income around £92,000 — how much could we borrow?"
+- *Deposit size* — "We've saved about £21,000… viewing flats around £340,000. Is that a big enough deposit?"
 
-Current trip details such as dates, destinations, and booking requests stay in short-term memory unless the user explicitly asks the agent to remember them for later. Durable details such as a user's name or recurring travel preferences can be extracted into long-term memory. Before writing and displaying newly extracted long-term memory, the backend filters out memories that already appeared in the retrieved long-term memory list.
+These are two separate conversations (distinct `langgraph-redis` threads) whose facts were promoted into long-term memory. (The **LTM** panel is empty when viewing the seeded threads — those turns *created* the memories, so there was nothing to retrieve yet; it populates on the live turns below.)
 
-### Examples of Interactions
+**Step 2 — New chat: uses the history, then adds more.** Click **＋ New conversation**:
+> "We're hoping to start making offers soon. What should we have sorted before we apply for a mortgage?"
 
-- "My name is Ricardo."
-- "Remember that I prefer flying Delta."
-- "I like vegetarian restaurants, but I do not like cilantro."
-- "I am planning a trip to Lisbon next month."
-- "Fresh session: what do you remember about me?"
-- "Can you recommend a dinner plan for Lisbon?"
+The **LTM** panel fills and the answer is tailored to the borrower without restating anything. Then, in the same chat, add context:
+> "We're both on permanent contracts with no other debts, and we'd want a five-year fixed rate. Does that change anything?"
 
-### UI Actions
+Watch the **Extracted Long-Term Memory** panel promote the two new facts.
 
-- **+** in the session chip starts a fresh short-term memory session while keeping the same long-term memory owner.
-- **×** in the session chip deletes short-term memory for the current session while keeping long-term memory intact.
+**Step 3 — Another new chat: the synthesis.** Click **＋ New conversation**:
+> "What mortgage would you recommend for us, and roughly what would the monthly repayments be?"
 
-### Web UI
+A normal fresh-chat question — yet the **LTM** panel shows *all* the accumulated facts and the reply synthesises them (LTV, income, five-year fixed, a monthly estimate), none of it restated here. This is the "it already knows this customer, across every conversation" moment.
 
-The web UI keeps the frontend deliberately small: Nginx serves static HTML, CSS, and JavaScript, while FastAPI handles `/api/*` requests.
+### Optional beats
 
-![web-ui-sample.png](images/web-ui-sample.png)
+- **STM vs LTM** — drop a transient detail ("the flat I'm looking at is on Oak Lane"), confirm the assistant recalls it, click **Clear STM**, then ask again: it forgets the in-chat detail but still knows the durable profile (LTM).
+- **"Won't it get stuck on an old budget?"** — memory is curated, not append-only: changed facts are captured with a timestamp, deduplicated/consolidated, retrieval is recency-aware, and memories can be updated, expired (TTL), or deleted via the API — so the picture evolves with the customer.
+- **Persistence** — reload the page; the threads are still there (server-side in Redis), proving they are not just client state.
 
-The frontend shows the chat, current session ID, short-term memory loaded for the current session, relevant long-term memories retrieved for the latest turn, and accepted new durable memories extracted from the latest user message. Session controls live in the session chip so the memory panels stay focused on STM, retrieved LTM, and newly extracted LTM. The UI uses a Redis-red accent for the primary actions and memory labels.
+After a live run, reset to the clean two-conversation baseline with `uv run python scripts/seed_demo.py --reset`.
 
-### Backend
+### Backend endpoints
 
-The backend exposes:
-
-| Endpoint                           | Purpose                                      |
-|:-----------------------------------|:---------------------------------------------|
-| `POST /api/sessions`               | Start a new session.                         |
-| `POST /api/chat`                   | Run one agent turn.                          |
-| `GET /api/sessions/{id}/memory`    | Read current session short-term memory.      |
-| `DELETE /api/sessions/{id}/memory` | Delete current session short-term memory.    |
-| `GET /api/health`                  | Backend liveness check.                      |
-| `GET /api/ready`                   | Backend readiness check, including Redis Agent Memory. |
-
-### Suggested Demo Flow
-
-1. Start the demo with `docker compose up --build`.
-2. Ask for help with a multi-turn travel request and notice the session context appearing as short-term memory.
-3. Tell the agent a durable fact or recurring preference.
-4. Inspect Redis Insight to show session events and newly extracted long-term memory.
-5. Click **+** in the session chip to start a fresh short-term memory session.
-6. Ask the agent a question that relies on durable long-term memory.
-7. Click **×** in the session chip to delete the current session memory without deleting durable long-term memory.
-8. Inspect Redis Insight again to show the memory being reused.
+| Endpoint | Purpose |
+|:--|:--|
+| `GET /api/threads` | List conversations for the borrower (most recent first). |
+| `POST /api/threads` | Create a new conversation. |
+| `GET /api/threads/{id}/messages` | Full message history for a thread (from `langgraph-redis`). |
+| `GET /api/threads/{id}/memory` | Read the thread's short-term (working) memory. |
+| `DELETE /api/threads/{id}/memory` | Clear the thread's short-term memory. |
+| `POST /api/chat` | Run one agent turn (`{thread_id, message}`). |
+| `GET /api/health` | Backend liveness check. |
+| `GET /api/ready` | Backend readiness check, including Redis Agent Memory. |
 
 ## Architecture
 
-The demo uses LangGraph to model one agent turn as a small graph while Redis Agent Memory provides both session-scoped short-term memory and durable long-term memory:
+Each agent turn is a small LangGraph graph. `langgraph-redis` persists the conversation per `thread_id`; `redis-agent-memory` provides STM and LTM:
 
-1. Retrieve the current session memory from Redis Agent Memory as short-term memory.
-2. Retrieve relevant long-term memories from Redis Agent Memory.
-3. Inject both memory contexts into the OpenAI system prompt.
-4. Generate the assistant response.
+1. Load the thread's prior messages from the `RedisSaver` checkpointer (keyed by `thread_id`).
+2. Retrieve the current session's short-term memory from Redis Agent Memory.
+3. Retrieve relevant long-term memories for the borrower from Redis Agent Memory.
+4. Inject both memory contexts into the OpenAI system prompt and generate the response.
 5. Write the user and assistant messages as session events.
-6. Extract candidate durable facts and preferences from the turn.
-7. Filter out candidates that duplicate long-term memories already retrieved for the request.
-8. Write accepted new long-term memories back to Redis Agent Memory.
-
-![Redis Agent Memory with LangGraph architecture](images/architecture-diagram.png)
+6. Extract durable borrower facts, filter out anything already in LTM, and write the rest back to Redis Agent Memory.
+7. Update the thread index (title + last-active) so the sidebar stays current.
 
 ## Running the Tests
 
-The test suite requires no external services: no Redis connection, no OpenAI key. All network calls are mocked.
-
-Install the test dependencies and run pytest:
+The test suite requires no external services — no Redis connection, no OpenAI key. Network calls are mocked and the thread index is tested against `fakeredis`.
 
 ```sh
-uv add --dev pytest httpx
+uv sync
 uv run pytest
 ```
 
-The tests are organized into three files under `tests/`:
+Tests under `tests/`:
 
-- `test_utils.py` — pure utility functions (no mocking required)
+- `test_utils.py` — pure utility functions
 - `test_api.py` — all FastAPI endpoints via `TestClient`
-- `test_service.py` — `RedisAgentMemoryService` methods, including the LTM deduplication logic
+- `test_service.py` — `RedisAgentMemoryService` methods, including LTM deduplication
+- `test_threads.py` — the `ThreadIndex` registry (via `fakeredis`)
 
 ## Known Issues
 
-- The demo requires a reachable Agent Memory Server data-plane endpoint.
+- Requires a reachable Agent Memory Server data-plane endpoint and a Redis database with the Query Engine + JSON modules.
 - Memory extraction is performed by the LLM, so phrasing can vary between runs.
-- The demo uses Redis Agent Memory session APIs for short-term memory, not LangGraph's native checkpointer interface.
-- Re-running the same durable fact may create the same deterministic memory ID and depend on server-side idempotency behavior if the existing memory was not retrieved for that request.
-- Redis Insight inspection depends on how your Agent Memory Server stores data internally.
+- The assistant provides general guidance only and is not a regulated financial-advice tool.
+- `--reset` is scoped to this demo's own threads (it deletes only those threads' checkpoints, the thread index, and the borrower's long-term memories), so it is safe against a shared Redis database — though a dedicated database is still recommended.
 
 ## Resources
 
 - [Redis Agent Memory](https://pypi.org/project/redis-agent-memory/)
+- [langgraph-redis (langgraph-checkpoint-redis)](https://pypi.org/project/langgraph-checkpoint-redis/)
 - [LangGraph documentation](https://langchain-ai.github.io/langgraph/)
 - [OpenAI API documentation](https://platform.openai.com/docs)
-- [Redis Insight](https://redis.io/insight/)
-
-## Maintainers
-
-**Maintainers:**
-- Ricardo Ferreira — [@riferrei](https://github.com/riferrei)
 
 ## License
 

@@ -3,34 +3,40 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Redis Agent Memory with LangGraph</title>
-    <link rel="stylesheet" href="/styles.css?v=session-actions-topbar" />
+    <title>Albion Home Loans · Mortgage Assistant</title>
+    <link rel="stylesheet" href="/styles.css?v=mortgage-threads" />
   </head>
   <body>
     <main class="app-shell">
+      <aside class="threads-pane">
+        <div class="brand">
+          <p class="eyebrow">Redis Agent Memory</p>
+          <h1 class="brand-name">Albion Home Loans</h1>
+        </div>
+        <button id="newThreadButton" type="button" class="new-thread">＋ New conversation</button>
+        <p class="threads-label">Conversations</p>
+        <ul id="threadList" class="thread-list empty">
+          <li class="thread-empty">No conversations yet.</li>
+        </ul>
+        <p class="threads-footnote">Threads persisted in Redis via <strong>langgraph-redis</strong></p>
+      </aside>
+
       <section class="chat-pane">
         <header class="topbar">
           <div>
-            <p class="eyebrow">Redis Agent Memory</p>
-            <h1>LangGraph Travel Agent</h1>
+            <p class="eyebrow">Mortgage Assistant</p>
+            <h1 id="threadTitle">New conversation</h1>
           </div>
-          <div class="session-chip">
-            <div class="session-copy">
-              <span>Session</span>
-              <strong id="sessionId">Starting...</strong>
-            </div>
-            <div class="session-actions" aria-label="Session actions">
-              <button id="newSessionButton" type="button" title="New session" aria-label="New session">+</button>
-              <button
-                id="deleteMemoryButton"
-                type="button"
-                class="secondary"
-                title="Delete short-term memory"
-                aria-label="Delete short-term memory"
-              >
-                ×
-              </button>
-            </div>
+          <div class="session-actions" aria-label="Conversation actions">
+            <button
+              id="clearMemoryButton"
+              type="button"
+              class="secondary"
+              title="Clear working memory (STM) for this conversation"
+              aria-label="Clear working memory"
+            >
+              Clear STM
+            </button>
           </div>
         </header>
 
@@ -40,7 +46,7 @@
           <input
             id="messageInput"
             autocomplete="off"
-            placeholder="Ask for travel help..."
+            placeholder="Ask about your mortgage…"
             required
           />
           <button id="sendButton" type="submit">Send</button>
@@ -80,6 +86,6 @@
       </aside>
     </main>
 
-    <script src="/app.js?v=session-actions-topbar"></script>
+    <script src="/app.js?v=mortgage-threads"></script>
   </body>
 </html>

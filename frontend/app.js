@@ -1,32 +1,46 @@
 const state = {
-  sessionId: null,
+  threadId: null,
+  threads: [],
   busy: false,
 };
 
 const els = {
-  sessionId: document.querySelector("#sessionId"),
+  threadList: document.querySelector("#threadList"),
+  newThread: document.querySelector("#newThreadButton"),
+  threadTitle: document.querySelector("#threadTitle"),
   messages: document.querySelector("#messages"),
   form: document.querySelector("#chatForm"),
   input: document.querySelector("#messageInput"),
   send: document.querySelector("#sendButton"),
-  newSession: document.querySelector("#newSessionButton"),
-  deleteMemory: document.querySelector("#deleteMemoryButton"),
+  clearMemory: document.querySelector("#clearMemoryButton"),
   stm: document.querySelector("#stmList"),
   ltm: document.querySelector("#ltmList"),
   written: document.querySelector("#writtenList"),
 };
 
+const EMPTY = {
+  stm: "No short-term memory yet.",
+  ltm: "No long-term memory retrieved yet.",
+  written: "No long-term memory written this turn.",
+};
+
 function setBusy(busy) {
   state.busy = busy;
   els.send.disabled = busy;
-  els.newSession.disabled = busy;
-  els.deleteMemory.disabled = busy;
+  els.newThread.disabled = busy;
+  els.clearMemory.disabled = busy;
   els.input.disabled = busy;
 }
 
-function setSession(sessionId) {
-  state.sessionId = sessionId;
-  els.sessionId.textContent = sessionId;
+function relativeTime(epochSeconds) {
+  if (!epochSeconds) {
+    return "";
+  }
+  const diff = Date.now() / 1000 - epochSeconds;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
 }
 
 function appendMessage(role, label, text) {
@@ -50,6 +64,48 @@ function renderList(element, items, emptyText) {
   }
 }
 
+function clearMemoryPanels() {
+  renderList(els.stm, [], EMPTY.stm);
+  renderList(els.ltm, [], EMPTY.ltm);
+  renderList(els.written, [], EMPTY.written);
+}
+
+function renderThreadList() {
+  els.threadList.innerHTML = "";
+  els.threadList.classList.toggle("empty", state.threads.length === 0);
+  if (state.threads.length === 0) {
+    const li = document.createElement("li");
+    li.className = "thread-empty";
+    li.textContent = "No conversations yet.";
+    els.threadList.append(li);
+    return;
+  }
+  for (const thread of state.threads) {
+    const li = document.createElement("li");
+    li.className = "thread-item";
+    if (thread.thread_id === state.threadId) {
+      li.classList.add("active");
+    }
+    li.innerHTML = `<span class="thread-title"></span><span class="thread-meta"></span>`;
+    li.querySelector(".thread-title").textContent = thread.title || "New conversation";
+    li.querySelector(".thread-meta").textContent = relativeTime(thread.last_active);
+    li.addEventListener("click", () => {
+      if (!state.busy && thread.thread_id !== state.threadId) {
+        selectThread(thread.thread_id);
+      }
+    });
+    els.threadList.append(li);
+  }
+}
+
+function setActiveThread(threadId, title) {
+  state.threadId = threadId;
+  if (title !== undefined) {
+    els.threadTitle.textContent = title || "New conversation";
+  }
+  renderThreadList();
+}
+
 async function api(path, options = {}) {
   const response = await fetch(path, {
     headers: { "Content-Type": "application/json" },
@@ -62,32 +118,30 @@ async function api(path, options = {}) {
   return payload;
 }
 
-async function createSession() {
-  const payload = await api("/api/sessions", { method: "POST" });
-  setSession(payload.session_id);
-  els.messages.innerHTML = "";
-  renderList(els.stm, [], "No short-term memory yet.");
-  renderList(els.ltm, [], "No long-term memory retrieved yet.");
-  renderList(els.written, [], "No long-term memory written yet.");
+async function loadThreads() {
+  const payload = await api("/api/threads");
+  state.threads = payload.threads || [];
+  renderThreadList();
+  return state.threads;
 }
 
-async function sendMessage(message) {
+async function selectThread(threadId) {
   setBusy(true);
-  appendMessage("user", "👤 You", message);
   try {
-    const payload = await api("/api/chat", {
-      method: "POST",
-      body: JSON.stringify({ session_id: state.sessionId, message }),
-    });
-    setSession(payload.session_id);
-    appendMessage("ai", "🤖 AI", payload.assistant_message);
-    renderList(els.stm, payload.short_term_memory, "No short-term memory yet.");
-    renderList(els.ltm, payload.long_term_memory, "No long-term memory retrieved yet.");
-    renderList(
-      els.written,
-      payload.extracted_long_term_memory,
-      "No long-term memory written this turn."
-    );
+    const thread = state.threads.find((t) => t.thread_id === threadId);
+    setActiveThread(threadId, thread ? thread.title : undefined);
+    els.messages.innerHTML = "";
+    clearMemoryPanels();
+
+    const [history, memory] = await Promise.all([
+      api(`/api/threads/${encodeURIComponent(threadId)}/messages`),
+      api(`/api/threads/${encodeURIComponent(threadId)}/memory`),
+    ]);
+    for (const message of history.messages || []) {
+      const isUser = message.role === "user";
+      appendMessage(isUser ? "user" : "ai", isUser ? "👤 You" : "🤖 Adviser", message.text);
+    }
+    renderList(els.stm, memory.short_term_memory || [], EMPTY.stm);
   } catch (error) {
     appendMessage("system", "Error", error.message);
   } finally {
@@ -96,14 +150,53 @@ async function sendMessage(message) {
   }
 }
 
-async function deleteSessionMemory() {
-  if (!state.sessionId) {
+async function createThread() {
+  setBusy(true);
+  try {
+    const thread = await api("/api/threads", { method: "POST" });
+    state.threads.unshift(thread);
+    setActiveThread(thread.thread_id, thread.title);
+    els.messages.innerHTML = "";
+    clearMemoryPanels();
+  } catch (error) {
+    appendMessage("system", "Error", error.message);
+  } finally {
+    setBusy(false);
+    els.input.focus();
+  }
+}
+
+async function sendMessage(message) {
+  setBusy(true);
+  appendMessage("user", "👤 You", message);
+  try {
+    const payload = await api("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({ thread_id: state.threadId, message }),
+    });
+    setActiveThread(payload.thread_id, payload.title);
+    appendMessage("ai", "🤖 Adviser", payload.assistant_message);
+    renderList(els.stm, payload.short_term_memory, EMPTY.stm);
+    renderList(els.ltm, payload.long_term_memory, EMPTY.ltm);
+    renderList(els.written, payload.extracted_long_term_memory, EMPTY.written);
+    // Refresh the sidebar so the auto-generated title and ordering update.
+    await loadThreads();
+  } catch (error) {
+    appendMessage("system", "Error", error.message);
+  } finally {
+    setBusy(false);
+    els.input.focus();
+  }
+}
+
+async function clearWorkingMemory() {
+  if (!state.threadId) {
     return;
   }
   setBusy(true);
   try {
-    await api(`/api/sessions/${encodeURIComponent(state.sessionId)}/memory`, { method: "DELETE" });
-    renderList(els.stm, [], "No short-term memory yet.");
+    await api(`/api/threads/${encodeURIComponent(state.threadId)}/memory`, { method: "DELETE" });
+    renderList(els.stm, [], EMPTY.stm);
   } catch (error) {
     appendMessage("system", "Error", error.message);
   } finally {
@@ -121,16 +214,29 @@ els.form.addEventListener("submit", (event) => {
   sendMessage(message);
 });
 
-els.newSession.addEventListener("click", () => {
+els.newThread.addEventListener("click", () => {
   if (!state.busy) {
-    createSession().catch((error) => appendMessage("system", "Error", error.message));
+    createThread();
   }
 });
 
-els.deleteMemory.addEventListener("click", () => {
+els.clearMemory.addEventListener("click", () => {
   if (!state.busy) {
-    deleteSessionMemory();
+    clearWorkingMemory();
   }
 });
 
-createSession().catch((error) => appendMessage("system", "Error", error.message));
+async function init() {
+  try {
+    const threads = await loadThreads();
+    if (threads.length > 0) {
+      await selectThread(threads[0].thread_id);
+    } else {
+      await createThread();
+    }
+  } catch (error) {
+    appendMessage("system", "Error", error.message);
+  }
+}
+
+init();

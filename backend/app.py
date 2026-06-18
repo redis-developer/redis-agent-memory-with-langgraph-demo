@@ -5,13 +5,13 @@ from functools import lru_cache
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from .memory import RedisAgentMemoryService, load_config, new_session_id
+from .memory import RedisAgentMemoryService, build_service
 from pydantic import BaseModel, Field
 from redis_agent_memory import AgentMemory
 
 
 logger = logging.getLogger("uvicorn.error")
-app = FastAPI(title="Redis Agent Memory with LangGraph Demo")
+app = FastAPI(title="Albion Home Loans · Mortgage Assistant (Redis Agent Memory + LangGraph)")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,15 +22,34 @@ app.add_middleware(
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1)
-    session_id: str | None = None
+    thread_id: str | None = None
 
 
-class SessionResponse(BaseModel):
-    session_id: str
+class ThreadSummaryModel(BaseModel):
+    thread_id: str
+    title: str
+    preview: str
+    created_at: float
+    last_active: float
+
+
+class ThreadListResponse(BaseModel):
+    threads: list[ThreadSummaryModel]
+
+
+class ThreadMessage(BaseModel):
+    role: str
+    text: str
+
+
+class ThreadMessagesResponse(BaseModel):
+    thread_id: str
+    messages: list[ThreadMessage]
 
 
 class ChatResponse(BaseModel):
-    session_id: str
+    thread_id: str
+    title: str
     user_message: str
     assistant_message: str
     short_term_memory: list[str]
@@ -38,8 +57,8 @@ class ChatResponse(BaseModel):
     extracted_long_term_memory: list[str]
 
 
-class SessionMemoryResponse(BaseModel):
-    session_id: str
+class ThreadMemoryResponse(BaseModel):
+    thread_id: str
     short_term_memory: list[str]
 
 
@@ -58,7 +77,9 @@ class ReadinessResponse(BaseModel):
 
 @lru_cache
 def get_service() -> RedisAgentMemoryService:
-    return RedisAgentMemoryService(load_config())
+    # build_service connects to Redis Cloud and sets up the LangGraph RedisSaver
+    # checkpointer + thread index that power the chat selector.
+    return build_service()
 
 
 def agent_memory_client(service: RedisAgentMemoryService) -> AgentMemory:
@@ -67,6 +88,16 @@ def agent_memory_client(service: RedisAgentMemoryService) -> AgentMemory:
         config.agent_memory_server_url,
         store_id=config.agent_memory_store_id,
         api_key=config.agent_memory_api_key,
+    )
+
+
+def _to_thread_model(summary) -> ThreadSummaryModel:
+    return ThreadSummaryModel(
+        thread_id=summary.thread_id,
+        title=summary.title,
+        preview=summary.preview,
+        created_at=summary.created_at,
+        last_active=summary.last_active,
     )
 
 
@@ -94,45 +125,75 @@ def ready() -> ReadinessResponse:
     return ReadinessResponse(status="ok", agent_memory=agent_memory_payload)
 
 
-@app.post("/api/sessions", response_model=SessionResponse)
-def create_session() -> SessionResponse:
-    return SessionResponse(session_id=new_session_id())
+@app.get("/api/threads", response_model=ThreadListResponse)
+def list_threads() -> ThreadListResponse:
+    service = get_service()
+    try:
+        summaries = service.list_threads()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return ThreadListResponse(threads=[_to_thread_model(s) for s in summaries])
 
 
-@app.get("/api/sessions/{session_id}/memory", response_model=SessionMemoryResponse)
-def get_session_memory(session_id: str) -> SessionMemoryResponse:
+@app.post("/api/threads", response_model=ThreadSummaryModel)
+def create_thread() -> ThreadSummaryModel:
+    service = get_service()
+    try:
+        summary = service.create_thread()
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return _to_thread_model(summary)
+
+
+@app.get("/api/threads/{thread_id}/messages", response_model=ThreadMessagesResponse)
+def get_thread_messages(thread_id: str) -> ThreadMessagesResponse:
     service = get_service()
     try:
         with agent_memory_client(service) as agent_memory:
-            memory = service.read_session_context(agent_memory, session_id)
+            messages = service.read_thread_messages(agent_memory, thread_id)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return SessionMemoryResponse(session_id=session_id, short_term_memory=memory)
+    return ThreadMessagesResponse(
+        thread_id=thread_id,
+        messages=[ThreadMessage(role=m["role"], text=m["text"]) for m in messages],
+    )
 
 
-@app.delete("/api/sessions/{session_id}/memory", response_model=SessionMemoryResponse)
-def delete_session_memory(session_id: str) -> SessionMemoryResponse:
+@app.get("/api/threads/{thread_id}/memory", response_model=ThreadMemoryResponse)
+def get_thread_memory(thread_id: str) -> ThreadMemoryResponse:
     service = get_service()
     try:
         with agent_memory_client(service) as agent_memory:
-            service.delete_session_memory(agent_memory, session_id)
+            memory = service.read_session_context(agent_memory, thread_id)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return SessionMemoryResponse(session_id=session_id, short_term_memory=[])
+    return ThreadMemoryResponse(thread_id=thread_id, short_term_memory=memory)
+
+
+@app.delete("/api/threads/{thread_id}/memory", response_model=ThreadMemoryResponse)
+def delete_thread_memory(thread_id: str) -> ThreadMemoryResponse:
+    service = get_service()
+    try:
+        with agent_memory_client(service) as agent_memory:
+            service.delete_session_memory(agent_memory, thread_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return ThreadMemoryResponse(thread_id=thread_id, short_term_memory=[])
 
 
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(request: ChatRequest) -> ChatResponse:
     service = get_service()
-    session_id = request.session_id or new_session_id()
+    thread_id = request.thread_id or service.create_thread().thread_id
     try:
         with agent_memory_client(service) as agent_memory:
-            result = service.run_turn(agent_memory, session_id, request.message.strip())
+            result = service.run_turn(agent_memory, thread_id, request.message.strip())
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return ChatResponse(
-        session_id=result.session_id,
+        thread_id=result.thread_id,
+        title=result.title,
         user_message=result.user_text,
         assistant_message=result.assistant_text,
         short_term_memory=result.session_context,
